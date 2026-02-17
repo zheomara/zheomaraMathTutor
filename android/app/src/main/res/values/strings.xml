@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Zheomara Math Tutor</string>
+    <string name="title_activity_main">Zheomara Math Tutor</string>
+    <string name="package_name">com.zheomara.mathtutor</string>
+    <string name="custom_url_scheme">com.zheomara.mathtutor</string>
+</resources>
