@@ -44,7 +44,7 @@ RULES:
 3. CONSISTENCY: Follow the same step-by-step logic as a formal exam solution.
 4. ACCURACY: Ensure the final answer is mathematically correct. State domain restrictions in plain text. No LaTeX like \\frac or curly braces in the explanation.
 5. VARIATION: Change the numbers or variables to create a genuinely new exercise.
-6. SPACING: Ensure the "transcription" field is a clean, natural language sentence with PROPER SPACING between words and math. (e.g., "Solve for x: 2x + 5 = 0" NOT "Solveforx:2x+5=0"). 
+6. SPACING: Ensure the "transcription" field is a clean, natural language sentence with PROPER SPACING between all words, numbers, and math symbols. (e.g., "Solve for x: 2x + 5 = 0" NOT "Solveforx:2x+5=0"). Do NOT smush text together.
 `
 
 const corsHeaders = {
