@@ -42,17 +42,27 @@ RULES:
 1. Use LaTeX for the "math" and "answerLatex" fields.
 2. NO DOLLAR SIGNS: Do NOT use dollar signs ($) in "explanation" or "tip". Use plain text.
 3. CONSISTENCY: Follow the same step-by-step logic as a formal exam solution.
-4. ACCURACY: Ensure the final answer is mathematically correct. State domain restrictions in plain text. No LaTeX like \frac or curly braces in the explanation.
+4. ACCURACY: Ensure the final answer is mathematically correct. State domain restrictions in plain text. No LaTeX like \\frac or curly braces in the explanation.
 5. VARIATION: Change the numbers or variables to create a genuinely new exercise.
 6. SPACING: Ensure the "transcription" field is a clean, natural language sentence with PROPER SPACING between words and math. (e.g., "Solve for x: 2x + 5 = 0" NOT "Solveforx:2x+5=0"). 
 `
+
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+    return NextResponse.json({}, { headers: corsHeaders });
+}
 
 export async function POST(req: NextRequest) {
     try {
         const { currentProblem } = await req.json();
 
         if (!currentProblem) {
-            return NextResponse.json({ error: "Missing current problem data" }, { status: 400 });
+            return NextResponse.json({ error: "Missing current problem data" }, { status: 400, headers: corsHeaders });
         }
 
         const completion = await groq.chat.completions.create({
@@ -74,13 +84,13 @@ export async function POST(req: NextRequest) {
         const data = JSON.parse(content);
         const validatedData = MathSolutionSchema.parse(data);
 
-        return NextResponse.json(validatedData);
+        return NextResponse.json(validatedData, { headers: corsHeaders });
 
     } catch (error) {
         console.error("Practice AI Error:", error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to generate practice problem" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }

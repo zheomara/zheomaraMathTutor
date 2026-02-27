@@ -40,10 +40,10 @@ ALWAYS return valid JSON exactly matching this schema:
 }
 RULES:
 1. Use LaTeX for the "math" and "answerLatex" fields. 
-2. NO DOLLAR SIGNS: In "explanation" and "tip", do NOT use dollar signs ($). Use plain text for simple variables (e.g., write "x is not equal to 0" instead of "$x \neq 0$").
+2. NO DOLLAR SIGNS: In "explanation" and "tip", do NOT use dollar signs ($). Use plain text for simple variables (e.g., write "x is not equal to 0" instead of "$x \\neq 0$").
 3. CONSISTENCY: Each step should follow a logical flow. Do not skip major algebraic jumps.
 4. ACCURACY: Never write incorrect equality chains.
-5. DOMAIN RESTRICTIONS: If a simplification removes a denominator, explicitly state the restrictions in plain text within the explanation. No LaTeX like \frac or curly braces in the explanation.
+5. DOMAIN RESTRICTIONS: If a simplification removes a denominator, explicitly state the restrictions in plain text within the explanation. No LaTeX like \\frac or curly braces in the explanation.
 6. FINAL ANSWER: The "answerLatex" should be the most simplified form.
 7. SPACING: Ensure the "transcription" and "explanation" fields have PROPER NATURAL SPACING between words and math symbols. (e.g., "Find the value of y" NOT "Findthevalueofy").
 `
@@ -67,6 +67,16 @@ const MOCK_RESPONSE: MathSolution = {
     ],
 };
 
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+    return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
     try {
         console.log("API Route Hit");
@@ -76,14 +86,14 @@ export async function POST(req: NextRequest) {
         const { problemText, image } = await req.json();
 
         if (!problemText && !image) {
-            return NextResponse.json({ error: "Missing problem text or image" }, { status: 400 });
+            return NextResponse.json({ error: "Missing problem text or image" }, { status: 400, headers: corsHeaders });
         }
 
         // Mock Mode Check
         if (process.env.MOCK_AI === "true" || !process.env.GROQ_API_KEY) {
             // Simulate delay
             await new Promise((resolve) => setTimeout(resolve, 1500));
-            return NextResponse.json(MOCK_RESPONSE);
+            return NextResponse.json(MOCK_RESPONSE, { headers: corsHeaders });
         }
 
         const messages: any[] = [
@@ -109,7 +119,7 @@ export async function POST(req: NextRequest) {
 
         const completion = await groq.chat.completions.create({
             messages,
-            model: image ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile",
+            model: image ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
             temperature: 0.2, // Low temp for more deterministic output
             response_format: { type: "json_object" },
         });
@@ -124,14 +134,14 @@ export async function POST(req: NextRequest) {
         // Validate with Zod
         const validatedData = MathSolutionSchema.parse(data);
 
-        return NextResponse.json(validatedData);
+        return NextResponse.json(validatedData, { headers: corsHeaders });
 
     } catch (error) {
         console.error("AI Error Full Object:", JSON.stringify(error, null, 2));
         console.error("AI Error Message:", error instanceof Error ? error.message : String(error));
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to generate solution" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
