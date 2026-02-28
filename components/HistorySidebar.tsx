@@ -5,13 +5,7 @@ import { Sheet, History as HistoryIcon, X, Clock } from "lucide-react";
 // Note: 'Sheet' is not an icon, I meant a sidebar container. I'll build a custom one.
 import { Button } from "@/components/ui/Button";
 import { MathSolution } from "@/services/types";
-
-interface HistoryItem {
-    id: string;
-    createdAt: string;
-    transcription: string;
-    data: MathSolution;
-}
+import { getHistory, HistoryItem } from "@/services/storage";
 
 interface HistorySidebarProps {
     onSelect: (item: MathSolution) => void;
@@ -23,16 +17,7 @@ export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
 
     useEffect(() => {
         if (isOpen) {
-            const stored = localStorage.getItem("mathTutorHistory");
-            if (stored) {
-                try {
-                    const parsed = JSON.parse(stored);
-                    // Sort by newest first
-                    setHistory(parsed.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-                } catch (e) {
-                    console.error("Failed to parse history", e);
-                }
-            }
+            getHistory().then(setHistory);
         }
     }, [isOpen]);
 
@@ -77,15 +62,15 @@ export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
                         history.map((item) => (
                             <div
                                 key={item.id}
-                                onClick={() => { onSelect(item.data); toggle(); }}
+                                onClick={() => { onSelect(item.solution); toggle(); }}
                                 className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-indigo-300 hover:shadow-sm cursor-pointer transition-all"
                             >
                                 <div className="flex items-center text-xs text-gray-400 mb-2">
                                     <Clock className="w-3 h-3 mr-1" />
-                                    {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                                 <p className="text-sm font-medium text-gray-800 line-clamp-2">
-                                    {item.transcription || "Unknown Problem"}
+                                    {item.solution.transcription || "Unknown Problem"}
                                 </p>
                                 <div className="mt-2 text-xs text-indigo-600 font-semibold">
                                     View Solution →

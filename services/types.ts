@@ -12,4 +12,7 @@ export interface MathSolution {
     steps: Step[];
     originalImage?: string; // Base64
     originalText?: string;
+    subject?: string;
+    quizOptions?: { id: string; mathLatex: string; isCorrect: boolean }[];
+    assumedKnowledge?: string[];
 }

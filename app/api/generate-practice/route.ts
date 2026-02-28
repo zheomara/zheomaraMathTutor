@@ -11,6 +11,14 @@ const MathSolutionSchema = z.object({
     transcription: z.string(),
     confidence: z.number(),
     answerLatex: z.string(),
+    subject: z.string(),
+    quizOptions: z.array(
+        z.object({
+            id: z.string(),
+            mathLatex: z.string(),
+            isCorrect: z.boolean(),
+        })
+    ).length(4).optional(),
     steps: z.array(
         z.object({
             title: z.string(),
@@ -29,6 +37,13 @@ ALWAYS return valid JSON exactly matching this schema:
   "transcription": "The new problem text",
   "confidence": 1.0,
   "answerLatex": "Final answer in LaTeX",
+  "subject": "e.g., Algebra, Geometry, Calculus, Basic Math",
+  "quizOptions": [
+    { "id": "A", "mathLatex": "Wrong answer 1", "isCorrect": false },
+    { "id": "B", "mathLatex": "Correct answer", "isCorrect": true },
+    { "id": "C", "mathLatex": "Wrong answer 2", "isCorrect": false },
+    { "id": "D", "mathLatex": "Wrong answer 3", "isCorrect": false }
+  ],
   "steps": [
     {
       "title": "Step Title",
@@ -50,6 +65,7 @@ RULES:
    - GOOD: "Solve for x: 2x + 5 = 0"
    - GOOD: "What is the value of y when 3y = 9?"
    Ensure you add a SPACE character ' ' between every word.
+7. QUIZ: You MUST provide exactly 4 distinct 'quizOptions', and exactly ONE of them must have 'isCorrect: true', matching the 'answerLatex'.
 `
 
 const corsHeaders = {

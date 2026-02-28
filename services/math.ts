@@ -1,4 +1,5 @@
-import { MathSolution } from "@/services/types"; // We need to define types
+import { MathSolution } from "@/services/types";
+import { awardXP, XP_PER_PROBLEM, XP_PER_PRACTICE } from "./storage";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -36,7 +37,9 @@ export async function solveMathProblem(problemText?: string, image?: string): Pr
     }
 
     try {
-        return await res.json();
+        const solution = await res.json();
+        await awardXP(XP_PER_PROBLEM);
+        return solution;
     } catch (e) {
         throw new Error("Failed to parse solution from server.");
     }
@@ -72,8 +75,25 @@ export async function generatePracticeProblem(currentProblem: string): Promise<M
     }
 
     try {
-        return await res.json();
+        const solution = await res.json();
+        await awardXP(XP_PER_PRACTICE);
+        return solution;
     } catch (e) {
         throw new Error("Failed to parse practice problem.");
     }
+}
+export async function explainConcept(concept: string): Promise<{ title: string; explanation: string; exampleMath: string }> {
+    const res = await fetch(`${API_BASE_URL}/api/explain-concept`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ concept }),
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to fetch concept explanation");
+    }
+
+    return await res.json();
 }

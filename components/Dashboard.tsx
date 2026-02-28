@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 // Remove Lucide icons that were placeholders in previous call if not needed
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Upload, Camera, Keyboard, AlertTriangle } from "lucide-react";
+import { Upload, Camera, Keyboard, AlertTriangle, Flame, Trophy } from "lucide-react";
 import CameraCapture from "@/components/CameraCapture";
 import SolutionView from "@/components/SolutionView";
 import HistorySidebar from "@/components/HistorySidebar";
 import { processImage } from "@/lib/image";
 import { solveMathProblem, generatePracticeProblem } from "@/services/math";
+import { getUserStats, UserStats, saveToHistory } from "@/services/storage";
 import { MathSolution } from "@/services/types";
 
 export default function Dashboard() {
@@ -19,32 +20,14 @@ export default function Dashboard() {
     const [solution, setSolution] = useState<MathSolution | null>(null);
     const [manualInput, setManualInput] = useState("");
     const [showManualInput, setShowManualInput] = useState(false);
+    const [stats, setStats] = useState<UserStats | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const saveToHistory = (sol: MathSolution) => {
-        const newItem = {
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-            subject: "Math",
-            transcription: sol.transcription,
-            answerLatex: sol.answerLatex,
-            data: sol,
-        };
-
-        const stored = localStorage.getItem("mathTutorHistory");
-        let history = [];
-        try {
-            history = stored ? JSON.parse(stored) : [];
-            if (!Array.isArray(history)) history = [];
-        } catch (e) {
-            console.error("Failed to parse history:", e);
-            history = [];
+    useEffect(() => {
+        if (view === "dashboard") {
+            getUserStats().then(setStats);
         }
-        history.unshift(newItem);
-        // Limit to 50 items
-        if (history.length > 50) history.pop();
-        localStorage.setItem("mathTutorHistory", JSON.stringify(history));
-    };
+    }, [view]);
 
     const handleSolve = async (text: string, image?: string) => {
         setLoading(true);
@@ -56,7 +39,7 @@ export default function Dashboard() {
             sol.originalText = text;
 
             setSolution(sol);
-            saveToHistory(sol);
+            await saveToHistory(sol);
             setView("solution");
         } catch (err: any) {
             console.error(err);
@@ -91,7 +74,7 @@ export default function Dashboard() {
         try {
             const sol = await generatePracticeProblem(solution.transcription);
             setSolution(sol);
-            saveToHistory(sol);
+            await saveToHistory(sol);
             setView("solution");
         } catch (err: any) {
             console.error(err);
@@ -129,9 +112,19 @@ export default function Dashboard() {
 
             <header className="flex flex-col items-center justify-center space-y-2 mt-8">
                 <h1 className="text-3xl font-bold tracking-tight text-gray-900">Math Tutor</h1>
-                <div className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
-                    Subject: Math
-                </div>
+
+                {stats && (
+                    <div className="flex gap-4 mt-2">
+                        <div className="flex items-center gap-1.5 bg-orange-50 text-orange-600 px-3 py-1.5 rounded-full font-semibold text-sm border border-orange-100 shadow-sm transition-all hover:scale-105">
+                            <Flame className="w-4 h-4" />
+                            <span>{stats.streak} Day Streak</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full font-semibold text-sm border border-blue-100 shadow-sm transition-all hover:scale-105">
+                            <Trophy className="w-4 h-4" />
+                            <span>Level {stats.level} ({stats.xp} XP)</span>
+                        </div>
+                    </div>
+                )}
             </header>
 
             <main className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center space-y-8 flex-1 flex flex-col justify-center">

@@ -1,68 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { z } from "zod";
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY || "gsk_placeholder", // Fallback for build time
 });
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "dummy");
+
 // Zod schema for the AI response
 const MathSolutionSchema = z.object({
     transcription: z.string(),
     confidence: z.number(),
     answerLatex: z.string(),
+    subject: z.string(),
     steps: z.array(
         z.object({
             title: z.string(),
             explanation: z.string(),
             math: z.string(),
-            tip: z.string().nullable().optional(),
+            tip: z.string().optional(),
         })
     ),
+    quizOptions: z.array(
+        z.object({
+            id: z.string(),
+            mathLatex: z.string(),
+            isCorrect: z.boolean(),
+        })
+    ).optional(),
+    assumedKnowledge: z.array(z.string()).optional(),
 });
 
 export type MathSolution = z.infer<typeof MathSolutionSchema>;
 
-const SYSTEM_PROMPT = `You are a strict but friendly math exam tutor. Explain solutions in clear, formal, exam-style steps. No stories, no metaphors, no baby talk.
-ALWAYS return valid JSON exactly matching this schema:
+const SYSTEM_PROMPT = `You are an expert Math Tutor AI specialized in teaching young children (Grade 2 level). Your job is to solve the problem and break it down into very simple, easy-to-understand steps that a 7 or 8-year-old would understand.
+
+PEDAGOGICAL RULES:
+1. TARGET AUDIENCE: Write for a Grade 2 student. Use simple language and short sentences.
+2. MATH in TEXT: In the "transcription", "explanation", and "tip" fields, ALWAYS use LaTeX symbols wrapped in single dollar signs for any math (e.g., use $x^2$ instead of "x squared", or $2 \times 3$ instead of "2 times 3").
+   - NEVER use computer symbols like ^ or * outside of dollar signs.
+3. PROPER MATH RENDERING: All math in the "math" and "answerLatex" fields MUST use valid LaTeX (without dollar signs).
+4. TINY STEPS: Break the problem into the smallest possible pieces. Don't skip any mental steps.
+5. TONE: Be very encouraging and friendly!
+6. ASSUMED KNOWLEDGE: Identify 2-3 simple math concepts that the student should already know to solve this problem (e.g., "$5 + 5 = 10$", "What a group is"). Use LaTeX for math here too.
+
+Provide the response in the following JSON structure ONLY. No markdown, no pre-text, just valid JSON format:
 {
-  "transcription": "string",
-  "confidence": 0.0 to 1.0,
-  "answerLatex": "string",
+  "transcription": "The original problem (e.g., 'What is $5 + 5$?')",
+  "subject": "The general math subject (e.g. Basic Addition)",
+  "confidence": 0.95,
+  "answerLatex": "10",
+  "assumedKnowledge": ["$5 + 5$", "Groups of objects"],
   "steps": [
     {
-      "title": "Step Title",
-      "explanation": "Clear explanation",
-      "math": "LaTeX string",
-      "tip": "Short heuristic (optional)"
+       "title": "Friendly Step Title",
+       "explanation": "A simple sentence with math like $2+2$.",
+       "math": "2 + 2 = 4",
+       "tip": "A tiny $1+1$ hint"
     }
   ]
 }
-RULES:
-1. Use LaTeX for the "math" and "answerLatex" fields. 
-2. NO DOLLAR SIGNS: In "explanation" and "tip", do NOT use dollar signs ($). Use plain text for simple variables (e.g., write "x is not equal to 0" instead of "$x \\neq 0$").
-3. CONSISTENCY: Each step should follow a logical flow. Do not skip major algebraic jumps.
-4. ACCURACY: Never write incorrect equality chains.
-5. DOMAIN RESTRICTIONS: If a simplification removes a denominator, explicitly state the restrictions in plain text within the explanation. No LaTeX like \\frac or curly braces in the explanation.
-6. FINAL ANSWER: The "answerLatex" should be the most simplified form.
-7. SPACING: Ensure the "transcription" and "explanation" fields have PROPER NATURAL SPACING between words and math symbols. (e.g., "Find the value of y" NOT "Findthevalueofy").
-`
+
+Ensure all math in 'math' and 'answerLatex' is in valid LaTeX format (no dollar signs). In text fields, wrap math in $...$. Do NOT wrap the JSON in markdown code blocks (\`\`\`json).`;
 
 const MOCK_RESPONSE: MathSolution = {
-    transcription: "Solve for x: 2x + 5 = 15",
-    confidence: 0.98,
-    answerLatex: "x = 5",
+    transcription: "Solve $2 \times 3 + 4$",
+    confidence: 1.0,
+    answerLatex: "10",
+    subject: "Basic Math",
+    assumedKnowledge: [
+        "How to count up to $10$",
+        "What 'groups of' means",
+        "Plus means adding items together"
+    ],
     steps: [
         {
-            title: "Isolate the variable term",
-            explanation: "Subtract 5 from both sides of the equation to isolate the term with x.",
-            math: "2x = 15 - 5 \\\\ 2x = 10",
-            tip: "Whatever you do to one side, do to the other.",
+            title: "Let's do the multiplication first!",
+            explanation: "We start with $2$ groups of $3$. If we have $2$ groups and put $3$ apples in each group, how many do we have?",
+            math: "2 \\times 3 = 6",
+            tip: "We always do multiplication before addition!",
         },
         {
-            title: "Solve for x",
-            explanation: "Divide both sides by 2 to solve for x.",
-            math: "x = \\frac{10}{2} \\\\ x = 5",
+            title: "Now add the last number",
+            explanation: "Now we take our $6$ and add $4$ more to it. Let's count up from $6$: $7, 8, 9, 10$!",
+            math: "6 + 4 = 10",
         },
     ],
 };
@@ -83,7 +106,8 @@ export async function POST(req: NextRequest) {
         console.log("GROQ_KEY_EXISTS:", !!process.env.GROQ_API_KEY);
         console.log("GROQ_KEY_PREFIX:", process.env.GROQ_API_KEY?.substring(0, 4));
 
-        const { problemText, image } = await req.json();
+        const body = await req.json();
+        const { problemText, image } = body;
 
         if (!problemText && !image) {
             return NextResponse.json({ error: "Missing problem text or image" }, { status: 400, headers: corsHeaders });
@@ -96,41 +120,62 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(MOCK_RESPONSE, { headers: corsHeaders });
         }
 
-        const messages: any[] = [
-            { role: "system", content: SYSTEM_PROMPT },
-        ];
+        let data;
 
         if (image) {
-            messages.push({
-                role: "user",
-                content: [
-                    { type: "text", text: "Identify and solve the math problem in this image." },
-                    {
-                        type: "image_url",
-                        image_url: {
-                            url: image,
-                        },
-                    },
-                ],
+            if (!process.env.GEMINI_API_KEY) {
+                return NextResponse.json(
+                    { error: "Gemini API Key is missing. Please add GEMINI_API_KEY to your .env.local file to use image upload." },
+                    { status: 400, headers: corsHeaders }
+                );
+            }
+
+            // The image is strictly base64 formatted (data:image/jpeg;base64,...), extract only the base64 part
+            const base64Data = image.split(',')[1];
+            const mimeType = image.split(';')[0].split(':')[1];
+
+            const model = genAI.getGenerativeModel({
+                model: "gemini-flash-latest",
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.2,
+                }
             });
+
+            const result = await model.generateContent([
+                SYSTEM_PROMPT,
+                "Identify and solve the math problem in this image.",
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: mimeType,
+                    }
+                }
+            ]);
+
+            const response = await result.response;
+            const content = response.text();
+            if (!content) throw new Error("No content received from Gemini");
+            data = JSON.parse(content);
+
         } else {
-            messages.push({ role: "user", content: `Solve this math problem: ${problemText}` });
+            const messages: any[] = [
+                { role: "system", content: SYSTEM_PROMPT },
+                { role: "user", content: `Solve this math problem: ${problemText}` }
+            ];
+
+            const completion = await groq.chat.completions.create({
+                messages,
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.2, // Low temp for more deterministic output
+                response_format: { type: "json_object" },
+            });
+
+            const content = completion.choices[0]?.message?.content;
+            if (!content) throw new Error("No content received from Groq");
+            data = JSON.parse(content);
         }
 
-        const completion = await groq.chat.completions.create({
-            messages,
-            model: image ? "llama-3.2-90b-vision-preview" : "llama-3.3-70b-versatile",
-            temperature: 0.2, // Low temp for more deterministic output
-            response_format: { type: "json_object" },
-        });
-
-        const content = completion.choices[0]?.message?.content;
-
-        if (!content) {
-            throw new Error("No content received from AI");
-        }
-
-        const data = JSON.parse(content);
         // Validate with Zod
         const validatedData = MathSolutionSchema.parse(data);
 
