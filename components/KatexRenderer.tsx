@@ -17,6 +17,7 @@ export default function KatexRenderer({ equation, block = false }: KatexRenderer
                 katex.render(equation, containerRef.current, {
                     displayMode: block,
                     throwOnError: false,
+                    output: "htmlAndMathml"
                 });
             } catch (e) {
                 console.error("KaTeX Error:", e);

@@ -8,6 +8,10 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useState } from "react";
 import Visualizer from "./Visualizer";
+import SocraticChat from "./SocraticChat";
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 interface SolutionViewProps {
     solution: MathSolution;
@@ -17,6 +21,7 @@ interface SolutionViewProps {
 
 export default function SolutionView({ solution, onBack, onGeneratePractice }: SolutionViewProps) {
     const [showVisualizer, setShowVisualizer] = useState(false);
+    const [revealedSteps, setRevealedSteps] = useState(1);
 
     const handleDownloadPDF = async () => {
         const element = document.getElementById("solution-content");
@@ -86,7 +91,24 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                 heightLeft -= pdfHeight;
             }
 
-            pdf.save(`Math_Solution_${new Date().getTime()}.pdf`);
+            const fileName = `Math_Solution_${new Date().getTime()}.pdf`;
+
+            if (Capacitor.isNativePlatform()) {
+                const pdfBase64 = pdf.output("datauristring").split(',')[1];
+                const result = await Filesystem.writeFile({
+                    path: fileName,
+                    data: pdfBase64,
+                    directory: Directory.Cache,
+                });
+
+                await Share.share({
+                    title: 'Math Solution PDF',
+                    url: result.uri,
+                    dialogTitle: 'Share or Save PDF',
+                });
+            } else {
+                pdf.save(fileName);
+            }
         } catch (err) {
             console.error("PDF Export failed", err);
             alert("Failed to export PDF. Please try again.");
@@ -141,16 +163,10 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                 </div>
 
                 <div className="p-6 space-y-8">
-                    <div className="text-center py-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                        <h3 className="text-sm text-indigo-600 font-medium mb-1">Final Answer</h3>
-                        <div className="text-2xl font-bold text-gray-900">
-                            <KatexRenderer equation={solution.answerLatex} block />
-                        </div>
-                    </div>
 
                     <div className="space-y-6">
                         <h3 className="text-lg font-bold text-gray-900">Step-by-Step Solution</h3>
-                        {solution.steps.map((step, index) => (
+                        {solution.steps.slice(0, revealedSteps).map((step, index) => (
                             <div key={index} className="flex gap-4">
                                 <div className="flex-shrink-0 flex flex-col items-center">
                                     <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
@@ -173,9 +189,33 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                                             <span className="font-bold">💡 Tip:</span> {step.tip?.replace(/\$/g, "")}
                                         </div>
                                     )}
+                                    <SocraticChat
+                                        problemText={solution.originalText || solution.transcription}
+                                        stepContext={step.explanation}
+                                    />
                                 </div>
                             </div>
                         ))}
+
+                        {revealedSteps < solution.steps.length && (
+                            <div className="flex justify-center pt-4 border-t border-gray-100">
+                                <Button
+                                    onClick={() => setRevealedSteps(prev => prev + 1)}
+                                    className="w-full sm:w-auto bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+                                >
+                                    Reveal Next Step ({solution.steps.length - revealedSteps} left)
+                                </Button>
+                            </div>
+                        )}
+
+                        {solution.steps.length === revealedSteps && (
+                            <div className="text-center py-4 bg-indigo-50 rounded-lg border border-indigo-100 mt-6">
+                                <h3 className="text-sm text-indigo-600 font-medium mb-1">Final Answer</h3>
+                                <div className="text-2xl font-bold text-gray-900">
+                                    <KatexRenderer equation={solution.answerLatex} block />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
