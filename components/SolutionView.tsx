@@ -6,7 +6,7 @@ import { ArrowLeft, Download, RefreshCw, Play } from "lucide-react";
 import KatexRenderer from "@/components/KatexRenderer";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Visualizer from "./Visualizer";
 import SocraticChat from "./SocraticChat";
 import { Capacitor } from '@capacitor/core';
@@ -22,6 +22,11 @@ interface SolutionViewProps {
 export default function SolutionView({ solution, onBack, onGeneratePractice }: SolutionViewProps) {
     const [showVisualizer, setShowVisualizer] = useState(false);
     const [revealedSteps, setRevealedSteps] = useState(1);
+
+    // Reset revealed steps when a new solution is loaded
+    useEffect(() => {
+        setRevealedSteps(1);
+    }, [solution]);
 
     const handleDownloadPDF = async () => {
         const element = document.getElementById("solution-content");
