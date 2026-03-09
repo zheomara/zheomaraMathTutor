@@ -6,11 +6,24 @@ const STREAK_KEY = 'user_streak';
 const MAX_STREAK = 'user_max_streak';
 const LAST_ACTIVE_KEY = 'last_active_date';
 const HISTORY_KEY = 'problem_history';
+const FREE_TRIES_KEY = 'free_tries_count';
 
 // XP Rewards
 export const XP_PER_PROBLEM = 15;
 export const XP_PER_PRACTICE = 10;
 export const XP_DAILY_BONUS = 25;
+
+export async function getFreeTries(): Promise<number> {
+    const triesStr = await Preferences.get({ key: FREE_TRIES_KEY });
+    return triesStr.value ? parseInt(triesStr.value) : 0;
+}
+
+export async function incrementFreeTries(): Promise<number> {
+    const current = await getFreeTries();
+    const next = current + 1;
+    await Preferences.set({ key: FREE_TRIES_KEY, value: next.toString() });
+    return next;
+}
 
 export interface UserStats {
     xp: number;
@@ -18,6 +31,7 @@ export interface UserStats {
     streak: number;
     maxStreak: number;
     justGotDailyBonus: boolean;
+    didLevelUp: boolean;
 }
 
 export interface HistoryItem {
@@ -67,7 +81,8 @@ export async function getUserStats(): Promise<UserStats> {
         level: calculateLevel(xp),
         streak: finalStreak,
         maxStreak,
-        justGotDailyBonus: false
+        justGotDailyBonus: false,
+        didLevelUp: false
     };
 }
 
@@ -105,15 +120,22 @@ export async function awardXP(amount: number): Promise<UserStats> {
 
     await Preferences.set({ key: XP_KEY, value: newXp.toString() });
 
+    const newLevel = calculateLevel(newXp);
+    const didLevelUp = newLevel > stats.level;
+
     return {
         ...stats,
         xp: newXp,
-        level: calculateLevel(newXp),
+        level: newLevel,
         streak: newStreak,
         maxStreak: Math.max(newStreak, stats.maxStreak),
-        justGotDailyBonus
+        justGotDailyBonus,
+        didLevelUp
     };
 }
+
+// Alias for awarding XP to match SolutionView imports
+export const updateUserStats = awardXP;
 
 // --- HISTORY BATCH ---
 

@@ -1,9 +1,9 @@
-import AccessGate from "@/components/AccessGate";
+import Dashboard from "@/components/Dashboard";
 
 export default function Home() {
     return (
-        <main className="min-h-screen flex flex-col items-center justify-center p-4">
-            <AccessGate />
+        <main className="min-h-screen flex flex-col items-center justify-center">
+            <Dashboard />
         </main>
     );
 }

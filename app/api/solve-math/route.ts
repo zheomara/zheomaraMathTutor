@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import OpenAI from "openai";
 import { z } from "zod";
+import { cleanAIJSON } from "@/lib/utils";
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY || "gsk_placeholder", // Fallback for build time
@@ -35,35 +37,45 @@ const MathSolutionSchema = z.object({
 
 export type MathSolution = z.infer<typeof MathSolutionSchema>;
 
-const SYSTEM_PROMPT = `You are an expert Math Tutor AI specialized in teaching young children (Grade 2 level). Your job is to solve the problem and break it down into very simple, easy-to-understand steps that a 7 or 8-year-old would understand.
+const SYSTEM_PROMPT = `You are an expert Math Tutor AI specialized in teaching young children (Grade 2 level). Your job is to solve the problem and break it down into very simple, easy-to-understand steps.
+
+LANGUAGE RULE:
+You MUST provide all pedagogical content (transcription, subject, assumedKnowledge, step titles, step explanations, and tips) in English.
+Even if the original problem is in another language, your entire response (except for LaTeX math) must be in English.
 
 PEDAGOGICAL RULES:
 1. TARGET AUDIENCE: Write for a Grade 2 student. Use simple language and short sentences.
-2. MATH in TEXT: In the "transcription", "explanation", and "tip" fields, ALWAYS use LaTeX symbols wrapped in single dollar signs for any math (e.g., use $x^2$ instead of "x squared", or $2 \times 3$ instead of "2 times 3").
-   - NEVER use computer symbols like ^ or * outside of dollar signs.
+2. MATH in TEXT: In the "transcription", "explanation", and "tip" fields, use simple text for math (e.g., "2 + 2 = 4" or "2 x 3 = 6"). 
+   - DO NOT use dollar signs ($) or any other delimiters in these fields. 
+   - NEVER use computer symbols like ^ or *; use plain text equivalents.
 3. PROPER MATH RENDERING: All math in the "math" and "answerLatex" fields MUST use valid LaTeX (without dollar signs).
+   - The "answerLatex" MUST be the final, simplified result (e.g., "10" OR "x = 5"), NOT a restatement of the problem.
+   - NEVER include labels like "Final Answer:" or "Mhinduro:" inside math fields.
 4. TINY STEPS: Break the problem into the smallest possible pieces. Don't skip any mental steps.
 5. TONE: Be very encouraging and friendly!
-6. ASSUMED KNOWLEDGE: Identify 2-3 simple math concepts that the student should already know to solve this problem (e.g., "$5 + 5 = 10$", "What a group is"). Use LaTeX for math here too.
+6. SPACING & READABILITY CRITICAL RULE: You MUST ensure all text fields (transcription, subject, title, explanation, tip) have PROPER SPACING between all words. NEVER run words together. 
+   - CORRECT: "Step one"
+   - INCORRECT: "Stepone"
+7. ASSUMED KNOWLEDGE: Identify 2-3 simple math concepts that the student should already know to solve this problem (e.g., "5 + 5 = 10", "What a group is"). 
 
 Provide the response in the following JSON structure ONLY. No markdown, no pre-text, just valid JSON format:
 {
-  "transcription": "The original problem (e.g., 'What is $5 + 5$?')",
-  "subject": "The general math subject (e.g. Basic Addition)",
+  "transcription": "The original problem (e.g., 'Solve 5 + 5')",
+  "subject": "The general math subject (e.g. Addition)",
   "confidence": 0.95,
   "answerLatex": "10",
-  "assumedKnowledge": ["$5 + 5$", "Groups of objects"],
+  "assumedKnowledge": ["5 + 5", "Groups"],
   "steps": [
     {
-       "title": "Friendly Step Title",
-       "explanation": "A simple sentence with math like $2+2$.",
-       "math": "2 + 2 = 4",
-       "tip": "A tiny $1+1$ hint"
+      "title": "Step Title",
+      "explanation": "Simple explanation with math like 2 + 2.",
+      "math": "2 + 2 = 4",
+      "tip": "Targeted hint with 1 + 1"
     }
   ]
 }
 
-Ensure all math in 'math' and 'answerLatex' is in valid LaTeX format (no dollar signs). In text fields, wrap math in $...$. Do NOT wrap the JSON in markdown code blocks (\`\`\`json).`;
+Ensure all math in 'math' and 'answerLatex' is in valid LaTeX format (no dollar signs). Do NOT wrap the JSON in markdown code blocks (\`\`\`json).`;
 
 const MOCK_RESPONSE: MathSolution = {
     transcription: "Solve $2 \times 3 + 4$",
@@ -109,6 +121,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { problemText, image } = body;
 
+        const currentPrompt = SYSTEM_PROMPT;
+
         if (!problemText && !image) {
             return NextResponse.json({ error: "Missing problem text or image" }, { status: 400, headers: corsHeaders });
         }
@@ -123,9 +137,9 @@ export async function POST(req: NextRequest) {
         let data;
 
         if (image) {
-            if (!process.env.GEMINI_API_KEY) {
+            if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
                 return NextResponse.json(
-                    { error: "Gemini API Key is missing. Please add GEMINI_API_KEY to your .env.local file to use image upload." },
+                    { error: "AI API Keys missing. Add GEMINI_API_KEY or OPENAI_API_KEY to your .env.local file to use image upload." },
                     { status: 400, headers: corsHeaders }
                 );
             }
@@ -134,46 +148,104 @@ export async function POST(req: NextRequest) {
             const base64Data = image.split(',')[1];
             const mimeType = image.split(';')[0].split(':')[1];
 
-            const model = genAI.getGenerativeModel({
-                model: "gemini-flash-latest",
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    temperature: 0.2,
-                }
-            });
+            try {
+                if (!process.env.GEMINI_API_KEY) throw new Error("No Gemini Key Configured");
 
-            const result = await model.generateContent([
-                SYSTEM_PROMPT,
-                "Identify and solve the math problem in this image.",
-                {
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: mimeType,
+                const model = genAI.getGenerativeModel({
+                    model: "gemini-flash-latest",
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        temperature: 0.2,
                     }
-                }
-            ]);
+                });
 
-            const response = await result.response;
-            const content = response.text();
-            if (!content) throw new Error("No content received from Gemini");
-            data = JSON.parse(content);
+                const result = await model.generateContent([
+                    currentPrompt,
+                    "Identify and solve the math problem in this image.",
+                    {
+                        inlineData: {
+                            data: base64Data,
+                            mimeType: mimeType,
+                        }
+                    }
+                ]);
+
+                const response = await result.response;
+                const content = cleanAIJSON(response.text());
+                if (!content) throw new Error("No content received from Gemini");
+                data = JSON.parse(content);
+            } catch (geminiError: any) {
+                console.warn("[AI Fallback] Gemini failed, attempting OpenAI fallback:", geminiError.message);
+
+                if (!process.env.OPENAI_API_KEY) {
+                    throw new Error("Gemini failed, and no OpenAI key is available for fallback.");
+                }
+
+                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    temperature: 0.2,
+                    response_format: { type: "json_object" },
+                    messages: [
+                        { role: "system", content: currentPrompt },
+                        {
+                            role: "user",
+                            content: [
+                                { type: "text", text: "Identify and solve the math problem in this image." },
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: `data:${mimeType};base64,${base64Data}`
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                });
+
+                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                if (!content) throw new Error("No content received from OpenAI fallback");
+                data = JSON.parse(content);
+            }
 
         } else {
             const messages: any[] = [
-                { role: "system", content: SYSTEM_PROMPT },
+                { role: "system", content: currentPrompt },
                 { role: "user", content: `Solve this math problem: ${problemText}` }
             ];
 
-            const completion = await groq.chat.completions.create({
-                messages,
-                model: "llama-3.3-70b-versatile",
-                temperature: 0.2, // Low temp for more deterministic output
-                response_format: { type: "json_object" },
-            });
+            try {
+                const completion = await groq.chat.completions.create({
+                    messages,
+                    model: "llama-3.3-70b-versatile",
+                    temperature: 0.2, // Low temp for more deterministic output
+                    response_format: { type: "json_object" },
+                });
 
-            const content = completion.choices[0]?.message?.content;
-            if (!content) throw new Error("No content received from Groq");
-            data = JSON.parse(content);
+                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                if (!content) throw new Error("No content received from Groq");
+                data = JSON.parse(content);
+            } catch (groqError: any) {
+                console.warn("[AI Fallback] Groq failed, attempting OpenAI fallback for text:", groqError.message);
+
+                if (!process.env.OPENAI_API_KEY) {
+                    throw new Error("Groq failed and no OpenAI key is available for fallback.");
+                }
+
+                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    temperature: 0.2,
+                    response_format: { type: "json_object" },
+                    messages
+                });
+
+                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                if (!content) throw new Error("No content received from OpenAI fallback");
+                data = JSON.parse(content);
+            }
         }
 
         // Validate with Zod
@@ -181,9 +253,18 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(validatedData, { headers: corsHeaders });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("AI Error Full Object:", JSON.stringify(error, null, 2));
         console.error("AI Error Message:", error instanceof Error ? error.message : String(error));
+
+        const errorMessage = error?.message?.toLowerCase() || "";
+        if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("insufficient") || errorMessage.includes("fallback")) {
+            return NextResponse.json(
+                { error: "Our AI systems are currently experiencing unusually high demand (Quota limits). Please try again in a few minutes." },
+                { status: 503, headers: corsHeaders }
+            );
+        }
+
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to generate solution" },
             { status: 500, headers: corsHeaders }

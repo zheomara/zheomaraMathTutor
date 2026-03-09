@@ -11,7 +11,17 @@ interface HistorySidebarProps {
     onSelect: (item: MathSolution) => void;
 }
 
+const uiTranslations: Record<string, any> = {
+    English: {
+        history: "History",
+        no_history: "No history yet.",
+        unknown_problem: "Unknown Problem",
+        view_solution: "View Solution →"
+    }
+};
+
 export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
+    const t = uiTranslations.English;
     const [isOpen, setIsOpen] = useState(false);
     const [history, setHistory] = useState<HistoryItem[]>([]);
 
@@ -32,7 +42,7 @@ export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
                 className="fixed top-4 right-4 z-40 bg-white shadow-sm border border-gray-200"
             >
                 <HistoryIcon className="w-5 h-5 mr-2" />
-                History
+                {t.history}
             </Button>
 
             {/* Backdrop */}
@@ -49,7 +59,7 @@ export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
                     }`}
             >
                 <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                    <h2 className="font-bold text-lg text-gray-900">History</h2>
+                    <h2 className="font-bold text-lg text-gray-900">{t.history}</h2>
                     <Button variant="ghost" size="sm" onClick={toggle}>
                         <X className="w-5 h-5" />
                     </Button>
@@ -57,7 +67,7 @@ export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
 
                 <div className="overflow-y-auto h-[calc(100vh-64px)] p-4 space-y-3">
                     {history.length === 0 ? (
-                        <p className="text-center text-gray-500 text-sm mt-10">No history yet.</p>
+                        <p className="text-center text-gray-500 text-sm mt-10">{t.no_history}</p>
                     ) : (
                         history.map((item) => (
                             <div
@@ -70,10 +80,10 @@ export default function HistorySidebar({ onSelect }: HistorySidebarProps) {
                                     {new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                                 <p className="text-sm font-medium text-gray-800 line-clamp-2">
-                                    {item.solution.transcription || "Unknown Problem"}
+                                    {item.solution.transcription || t.unknown_problem}
                                 </p>
                                 <div className="mt-2 text-xs text-indigo-600 font-semibold">
-                                    View Solution →
+                                    {t.view_solution}
                                 </div>
                             </div>
                         ))

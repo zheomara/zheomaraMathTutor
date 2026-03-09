@@ -26,6 +26,7 @@ export default function RootLayout({
             <body className={`${inter.variable} font-sans`}>
                 {children}
                 <ServiceWorkerRegister />
+                <script src="https://js.puter.com/v2/"></script>
             </body>
         </html>
     );

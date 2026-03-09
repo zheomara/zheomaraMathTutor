@@ -9,7 +9,7 @@ export async function processImage(file: File): Promise<string> {
                 const canvas = document.createElement("canvas");
                 let width = img.width;
                 let height = img.height;
-                const maxDimension = 1536;
+                const maxDimension = 800;
 
                 if (width > height) {
                     if (width > maxDimension) {
@@ -33,9 +33,9 @@ export async function processImage(file: File): Promise<string> {
 
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Compress to JPEG with 0.8 quality
+                // Compress to JPEG with 0.5 quality
                 // Return base64 string (including data:image/jpeg;base64,...)
-                resolve(canvas.toDataURL("image/jpeg", 0.8));
+                resolve(canvas.toDataURL("image/jpeg", 0.5));
             };
             img.onerror = (e) => reject(e);
         };

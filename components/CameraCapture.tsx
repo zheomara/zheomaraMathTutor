@@ -9,7 +9,15 @@ interface CameraCaptureProps {
     onClose: () => void;
 }
 
+const uiTranslations: Record<string, any> = {
+    English: {
+        title: "Take a Photo",
+        error: "Could not access camera. Please allow permissions."
+    }
+};
+
 export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
+    const t = uiTranslations.English;
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -30,7 +38,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
                 videoRef.current.srcObject = mediaStream;
             }
         } catch (err) {
-            setError("Could not access camera. Please allow permissions.");
+            setError(t.error);
             console.error(err);
         }
     };
@@ -67,7 +75,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
             <div className="flex justify-between items-center p-4 bg-black/50 text-white z-10">
-                <h2 className="text-lg font-semibold">Take a Photo</h2>
+                <h2 className="text-lg font-semibold">{t.title}</h2>
                 <Button variant="ghost" onClick={() => { stopCamera(); onClose(); }} className="text-white hover:bg-white/20">
                     <X className="w-6 h-6" />
                 </Button>

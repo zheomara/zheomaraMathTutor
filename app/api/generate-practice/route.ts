@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { z } from "zod";
+import { cleanAIJSON } from "@/lib/utils";
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY || "gsk_placeholder",
@@ -32,12 +33,17 @@ const MathSolutionSchema = z.object({
 const SYSTEM_PROMPT = `You are a math tutor creating practice problems. 
 Given a math problem and its solution, generate a SIMILAR but DIFFERENT practice problem.
 The new problem should test the same concept but use different numbers or scenarios.
+
+LANGUAGE RULE:
+You MUST provide all pedagogical content (transcription, subject, step titles, step explanations, and tips) in English.
+Even if the original problem is in another language, your entire response (except for LaTeX math) must be in English.
+
 ALWAYS return valid JSON exactly matching this schema:
 {
-  "transcription": "The new problem text",
+  "transcription": "The new problem text (e.g., 'Gadzirisa $2 + 2$')",
+  "subject": "e.g., Masvomhu ePasi",
   "confidence": 1.0,
   "answerLatex": "Final answer in LaTeX",
-  "subject": "e.g., Algebra, Geometry, Calculus, Basic Math",
   "quizOptions": [
     { "id": "A", "mathLatex": "Wrong answer 1", "isCorrect": false },
     { "id": "B", "mathLatex": "Correct answer", "isCorrect": true },
@@ -47,24 +53,25 @@ ALWAYS return valid JSON exactly matching this schema:
   "steps": [
     {
       "title": "Step Title",
-      "explanation": "Clear explanation",
+      "explanation": "Simple explanation",
       "math": "LaTeX string",
-      "tip": "Short heuristic (optional)"
+      "tip": "Small hint"
     }
   ]
 }
+
 RULES:
 1. Use LaTeX for the "math" and "answerLatex" fields.
-2. NO DOLLAR SIGNS: Do NOT use dollar signs ($) in "explanation" or "tip". Use plain text.
+   - The "answerLatex" MUST be the final, simplified result (e.g., "10" OR "x = 5"), NOT a restatement of the problem.
+   - NEVER include labels like "Final Answer:" or "Mhinduro:" inside math fields.
+2. MATH in TEXT: In "transcription", "explanation", and "tip" fields, use simple text for math (e.g., "2 + 2 = 4"). 
+   - DO NOT use dollar signs ($) or any other delimiters in these fields.
 3. CONSISTENCY: Follow the same step-by-step logic as a formal exam solution.
-4. ACCURACY: Ensure the final answer is mathematically correct. State domain restrictions in plain text. No LaTeX like \\frac or curly braces in the explanation.
+4. ACCURACY: Ensure the final answer is mathematically correct.
 5. VARIATION: Change the numbers or variables to create a genuinely new exercise.
-6. SPACING: Ensure the "transcription" field is a clean, natural language sentence with PROPER SPACING between all words, numbers, and math symbols. 
-   - BAD: "Solveforx:2x+5=0"
-   - BAD: "Whatisthevalueofywhen3y=9?"
-   - GOOD: "Solve for x: 2x + 5 = 0"
-   - GOOD: "What is the value of y when 3y = 9?"
-   Ensure you add a SPACE character ' ' between every word.
+6. SPACING & READABILITY CRITICAL RULE: You MUST ensure all text fields have PROPER SPACING between all words. NEVER run words together. 
+   - CORRECT: "Step one"
+   - INCORRECT: "Stepone"
 7. QUIZ: You MUST provide exactly 4 distinct 'quizOptions', and exactly ONE of them must have 'isCorrect: true', matching the 'answerLatex'.
 `
 
@@ -86,9 +93,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing current problem data" }, { status: 400, headers: corsHeaders });
         }
 
+        const currentPrompt = SYSTEM_PROMPT;
+
         const completion = await groq.chat.completions.create({
             messages: [
-                { role: "system", content: SYSTEM_PROMPT },
+                { role: "system", content: currentPrompt },
                 { role: "user", content: `Generate a similar practice problem for: ${currentProblem}` },
             ],
             model: "llama-3.3-70b-versatile",
@@ -96,12 +105,8 @@ export async function POST(req: NextRequest) {
             response_format: { type: "json_object" },
         });
 
-        const content = completion.choices[0]?.message?.content;
-
-        if (!content) {
-            throw new Error("No content received from AI");
-        }
-
+        const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+        if (!content) throw new Error("No content received from AI");
         const data = JSON.parse(content);
         const validatedData = MathSolutionSchema.parse(data);
 

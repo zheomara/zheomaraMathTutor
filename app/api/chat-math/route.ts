@@ -8,8 +8,17 @@ const groq = new Groq({
 const SYSTEM_PROMPT = `You are a helpful, encouraging math tutor engaging in Socratic dialog.
 Your goal is to guide the student to the answer by asking leading questions, NOT by just giving them the answer.
 The student is asking a question about a specific step in a math problem they are trying to solve.
-Keep your responses short, conversational, and pedagogical. Use plain text mostly, and LaTeX only when necessary.
-DO NOT use dollar signs ($) for math.
+
+LANGUAGE RULE:
+You MUST respond in English.
+Even if the student asks in another language, you must respond in English.
+
+PEDAGOGICAL RULES:
+1. Keep your responses short, conversational, and pedagogical. 
+2. MATH in TEXT: DO NOT use dollar signs. Use plain text for math equations or notation like "x = 2".
+3. SPACING & READABILITY CRITICAL RULE: You MUST ensure your response has PROPER SPACING between all words. NEVER run words together. 
+   - CORRECT: "Step one"
+   - INCORRECT: "Stepone"
 `;
 
 const corsHeaders = {
@@ -26,12 +35,14 @@ export async function POST(req: NextRequest) {
     try {
         const { problemText, stepContent, question, chatHistory = [] } = await req.json();
 
+        const currentPrompt = SYSTEM_PROMPT;
+
         if (!question || !stepContent) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400, headers: corsHeaders });
         }
 
         const messages: any[] = [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: currentPrompt },
             { role: "user", content: `Original Problem: ${problemText}\n\nCurrent Step Context: ${stepContent}\n\nThe student is asking about this specific step. Remember to be Socratic and helpful.` },
             ...chatHistory,
             { role: "user", content: question }

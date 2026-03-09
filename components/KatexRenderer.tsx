@@ -3,18 +3,21 @@
 import { useEffect, useRef } from "react";
 import katex from "katex";
 
+import { ensureString } from "@/lib/utils";
+
 interface KatexRendererProps {
-    equation: string;
+    equation: any; // Allow any to handle potential AI objects
     block?: boolean;
 }
 
 export default function KatexRenderer({ equation, block = false }: KatexRendererProps) {
     const containerRef = useRef<HTMLSpanElement>(null);
+    const safeEquation = ensureString(equation);
 
     useEffect(() => {
         if (containerRef.current) {
             try {
-                katex.render(equation, containerRef.current, {
+                katex.render(safeEquation, containerRef.current, {
                     displayMode: block,
                     throwOnError: false,
                     output: "htmlAndMathml"
