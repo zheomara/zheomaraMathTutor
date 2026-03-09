@@ -434,9 +434,10 @@ export default function Dashboard() {
                                         >
                                             <Button
                                                 variant="secondary"
-                                                className="w-full h-14 text-xl rounded-3xl bg-gray-50 border-2 border-gray-100/50 hover:bg-white hover:border-indigo-200 hover:text-indigo-600 transition-all shadow-sm"
+                                                className="w-full h-14 text-xl rounded-3xl bg-gray-50 border-2 border-gray-100/50 hover:bg-white hover:border-indigo-200 text-black transition-all shadow-sm"
                                                 onClick={() => setShowManualInput(true)}
                                             >
+
                                                 <Keyboard className="mr-3 w-6 h-6" />
                                                 {t.typeProblem}
                                             </Button>
