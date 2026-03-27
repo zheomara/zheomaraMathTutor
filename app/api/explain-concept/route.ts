@@ -84,25 +84,30 @@ RULES:
                 const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
                 if (!content) throw new Error("No content received from Groq fallback");
                 data = JSON.parse(content);
-            } catch (groqError) {
-                console.warn("[AI Fallback] Groq failed, attempting OpenAI fallback:", groqError);
+            } catch (groqError: any) {
+                console.warn("[AI Fallback] Groq failed, attempting OpenAI fallback:", groqError.message);
 
                 if (!process.env.OPENAI_API_KEY) {
                     throw new Error("Gemini and Groq failed, and no OpenAI key is available for fallback.");
                 }
 
-                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+                try {
+                    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-                const completion = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    temperature: 0.2,
-                    response_format: { type: "json_object" },
-                    messages: [{ role: "user", content: prompt }]
-                });
+                    const completion = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        temperature: 0.2,
+                        response_format: { type: "json_object" },
+                        messages: [{ role: "user", content: prompt }]
+                    });
 
-                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
-                if (!content) throw new Error("No content received from OpenAI fallback");
-                data = JSON.parse(content);
+                    const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                    if (!content) throw new Error("No content received from OpenAI fallback");
+                    data = JSON.parse(content);
+                } catch (openaiError: any) {
+                    console.error("[AI Fallback] OpenAI fallback also failed:", openaiError.message);
+                    throw new Error(`AI systems are currently unavailable. Gemini: ${geminiError instanceof Error ? geminiError.message : 'Unknown'}, Groq: ${groqError.message}, OpenAI: ${openaiError.message}`);
+                }
             }
         }
 

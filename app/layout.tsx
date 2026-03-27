@@ -7,13 +7,29 @@ import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-    title: "Math Tutor PWA",
-    description: "AI-powered Math Tutor",
+    title: "Math Tutor",
+    description: "AI-powered Math Tutor with exam-style reasoning.",
     manifest: "/manifest.json",
+    applicationName: "Math Tutor",
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: "default",
+        title: "Math Tutor",
+    },
+    formatDetection: {
+        telephone: false,
+    },
     icons: {
         apple: "/icon-192x192.png",
     },
+};
+
+export const viewport = {
     themeColor: "#4F46E5",
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
 };
 
 export default function RootLayout({
@@ -26,7 +42,6 @@ export default function RootLayout({
             <body className={`${inter.variable} font-sans`}>
                 {children}
                 <ServiceWorkerRegister />
-                <script src="/puter.v2.js"></script>
 
             </body>
         </html>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import OpenAI from "openai";
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY || "gsk_placeholder",
@@ -48,16 +49,39 @@ export async function POST(req: NextRequest) {
             { role: "user", content: question }
         ];
 
-        const completion = await groq.chat.completions.create({
-            messages,
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.6,
-        });
+        let content;
 
-        const content = completion.choices[0]?.message?.content;
+        try {
+            const completion = await groq.chat.completions.create({
+                messages,
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.6,
+            });
 
-        if (!content) {
-            throw new Error("No response from AI");
+            content = completion.choices[0]?.message?.content;
+            if (!content) throw new Error("No response from Groq");
+        } catch (groqError: any) {
+            console.warn("[AI Fallback] Groq failed, attempting OpenAI fallback:", groqError.message);
+
+            if (!process.env.OPENAI_API_KEY) {
+                throw new Error("Groq failed and no OpenAI key is available for fallback.");
+            }
+
+            try {
+                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    temperature: 0.6,
+                    messages
+                });
+
+                content = completion.choices[0]?.message?.content;
+                if (!content) throw new Error("No response from OpenAI fallback");
+            } catch (openaiError: any) {
+                console.error("[AI Fallback] OpenAI fallback also failed:", openaiError.message);
+                throw new Error(`AI systems are currently unavailable. Groq: ${groqError.message}, OpenAI: ${openaiError.message}`);
+            }
         }
 
         return NextResponse.json({ text: content }, { headers: corsHeaders });

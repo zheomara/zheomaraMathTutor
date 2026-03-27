@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
                 if (!process.env.GEMINI_API_KEY) throw new Error("No Gemini Key Configured");
 
                 const model = genAI.getGenerativeModel({
-                    model: "gemini-flash-latest",
+                    model: "gemini-1.5-flash",
                     generationConfig: {
                         responseMimeType: "application/json",
                         temperature: 0.2,
@@ -181,32 +181,37 @@ export async function POST(req: NextRequest) {
                     throw new Error("Gemini failed, and no OpenAI key is available for fallback.");
                 }
 
-                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+                try {
+                    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-                const completion = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    temperature: 0.2,
-                    response_format: { type: "json_object" },
-                    messages: [
-                        { role: "system", content: currentPrompt },
-                        {
-                            role: "user",
-                            content: [
-                                { type: "text", text: "Identify and solve the math problem in this image." },
-                                {
-                                    type: "image_url",
-                                    image_url: {
-                                        url: `data:${mimeType};base64,${base64Data}`
+                    const completion = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        temperature: 0.2,
+                        response_format: { type: "json_object" },
+                        messages: [
+                            { role: "system", content: currentPrompt },
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: "Identify and solve the math problem in this image." },
+                                    {
+                                        type: "image_url",
+                                        image_url: {
+                                            url: `data:${mimeType};base64,${base64Data}`
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ]
-                });
+                                ]
+                            }
+                        ]
+                    });
 
-                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
-                if (!content) throw new Error("No content received from OpenAI fallback");
-                data = JSON.parse(content);
+                    const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                    if (!content) throw new Error("No content received from OpenAI fallback");
+                    data = JSON.parse(content);
+                } catch (openaiError: any) {
+                    console.error("[AI Fallback] OpenAI fallback also failed:", openaiError.message);
+                    throw new Error(`AI systems are currently unavailable. Gemini: ${geminiError.message}, OpenAI: ${openaiError.message}`);
+                }
             }
 
         } else {
@@ -233,18 +238,23 @@ export async function POST(req: NextRequest) {
                     throw new Error("Groq failed and no OpenAI key is available for fallback.");
                 }
 
-                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+                try {
+                    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-                const completion = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    temperature: 0.2,
-                    response_format: { type: "json_object" },
-                    messages
-                });
+                    const completion = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        temperature: 0.2,
+                        response_format: { type: "json_object" },
+                        messages
+                    });
 
-                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
-                if (!content) throw new Error("No content received from OpenAI fallback");
-                data = JSON.parse(content);
+                    const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                    if (!content) throw new Error("No content received from OpenAI fallback");
+                    data = JSON.parse(content);
+                } catch (openaiError: any) {
+                    console.error("[AI Fallback] OpenAI fallback also failed for text:", openaiError.message);
+                    throw new Error(`AI systems are currently unavailable. Groq: ${groqError.message}, OpenAI: ${openaiError.message}`);
+                }
             }
         }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { z } from "zod";
+import OpenAI from "openai";
 import { cleanAIJSON } from "@/lib/utils";
 
 const groq = new Groq({
@@ -95,21 +96,52 @@ export async function POST(req: NextRequest) {
 
         const currentPrompt = SYSTEM_PROMPT;
 
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: "system", content: currentPrompt },
-                { role: "user", content: `Generate a similar practice problem for: ${currentProblem}` },
-            ],
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.7, // Slightly higher temp for variation
-            response_format: { type: "json_object" },
-        });
+        let data;
 
-        const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
-        if (!content) throw new Error("No content received from AI");
-        const data = JSON.parse(content);
+        try {
+            const completion = await groq.chat.completions.create({
+                messages: [
+                    { role: "system", content: currentPrompt },
+                    { role: "user", content: `Generate a similar practice problem for: ${currentProblem}` },
+                ],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.7, // Slightly higher temp for variation
+                response_format: { type: "json_object" },
+            });
+
+            const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+            if (!content) throw new Error("No content received from AI");
+            data = JSON.parse(content);
+        } catch (groqError: any) {
+            console.warn("[AI Fallback] Groq failed, attempting OpenAI fallback:", groqError.message);
+
+            if (!process.env.OPENAI_API_KEY) {
+                throw new Error("Groq failed and no OpenAI key is available for fallback.");
+            }
+
+            try {
+                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    temperature: 0.7,
+                    response_format: { type: "json_object" },
+                    messages: [
+                        { role: "system", content: currentPrompt },
+                        { role: "user", content: `Generate a similar practice problem for: ${currentProblem}` },
+                    ],
+                });
+
+                const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
+                if (!content) throw new Error("No content received from OpenAI fallback");
+                data = JSON.parse(content);
+            } catch (openaiError: any) {
+                console.error("[AI Fallback] OpenAI fallback also failed:", openaiError.message);
+                throw new Error(`AI systems are currently unavailable. Groq: ${groqError.message}, OpenAI: ${openaiError.message}`);
+            }
+        }
+
         const validatedData = MathSolutionSchema.parse(data);
-
         return NextResponse.json(validatedData, { headers: corsHeaders });
 
     } catch (error) {
