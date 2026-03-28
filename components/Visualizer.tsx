@@ -27,73 +27,91 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
     const [celebrate, setCelebrate] = useState(false);
     const steps = solution.steps;
 
+    // Unified Animation Timer and Speech Synthesis Controller
     useEffect(() => {
-        let timer: NodeJS.Timeout;
-        if (isPlaying && currentStep < steps.length - 1) {
-            // Dynamically calculate delay so the voice TTS never gets cut off on long paragraphs
-            let dynamicDelay = 6000; // minimum reading plus animation time
-            if (currentStep >= 0) {
-                const textLength = (steps[currentStep].title + steps[currentStep].explanation).length;
-                const estimatedReadTimeMs = (textLength / 12) * 1000; // ~12 characters per second reading speed
-                dynamicDelay = Math.max(6000, estimatedReadTimeMs + 1000); // Add 1s breather
-            }
+        if (!isPlaying) return;
 
-            timer = setTimeout(() => {
-                setCurrentStep((prev) => prev + 1);
-            }, dynamicDelay);
-        } else if (currentStep === steps.length - 1 && isPlaying) {
+        let advanceTimer: NodeJS.Timeout;
+        let failsafeTimer: NodeJS.Timeout;
+
+        // Intro screen
+        if (currentStep === -1) {
+            advanceTimer = setTimeout(() => {
+                setCurrentStep(0);
+            }, 3000);
+            return () => clearTimeout(advanceTimer);
+        }
+
+        // Celebration screen
+        if (currentStep === steps.length - 1) {
             setIsPlaying(false);
             setCelebrate(true);
+            return;
         }
-        return () => clearTimeout(timer);
-    }, [isPlaying, currentStep, steps.length]);
 
-    // Load available voices once (required by Chrome/Safari to initialize voices)
-    useEffect(() => {
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.getVoices();
-        }
-    }, []);
-
-    // Text-to-Speech Narration synchronized with the animation
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.speechSynthesis) return;
-
-        // Immediately cancel any currently playing audio so voices don't overlap
-        window.speechSynthesis.cancel();
-
-        // Only speak if we are on a valid step and the player is active
-        if (currentStep >= 0 && currentStep < steps.length && isPlaying) {
+        // Active animation steps
+        if (currentStep >= 0 && currentStep < steps.length - 1) {
             const step = steps[currentStep];
-            
-            // Clean up LaTeX markers so the voice engine reads normal words and numbers
             const cleanExplanation = step.explanation.replace(/[\$\\\(\)]/g, "");
             const textToSpeak = `${step.title}. ${cleanExplanation}`;
 
-            const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            
-            // Set properties for a more "tutor-like" clear voice
-            utterance.rate = 0.95; // Slightly slower pacing
-            utterance.pitch = 1.0;
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utterance.rate = 0.95;
+                utterance.pitch = 1.0;
 
-            // Try to find a premium/natural English voice if available on the user's OS
-            const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(v => 
-                v.lang.startsWith("en-") && 
-                (v.name.includes("Google") || v.name.includes("Siri") || v.name.includes("Natural") || v.name.includes("Premium"))
-            );
-            if (preferredVoice) utterance.voice = preferredVoice;
+                const voices = window.speechSynthesis.getVoices();
+                const preferredVoice = voices.find(v => 
+                    v.lang.startsWith("en-") && 
+                    (v.name.includes("Google") || v.name.includes("Siri") || v.name.includes("Natural") || v.name.includes("Premium"))
+                );
+                if (preferredVoice) utterance.voice = preferredVoice;
 
-            window.speechSynthesis.speak(utterance);
+                let speechEnded = false;
+
+                // When speech finishes naturally, wait 1 second to breathe, then advance
+                utterance.onend = () => {
+                    speechEnded = true;
+                    advanceTimer = setTimeout(() => {
+                        setCurrentStep(prev => prev + 1);
+                    }, 1000);
+                };
+
+                // If speech fails to play, fallback quickly
+                utterance.onerror = () => {
+                    speechEnded = true;
+                    advanceTimer = setTimeout(() => setCurrentStep(prev => prev + 1), 6000);
+                };
+
+                window.speechSynthesis.speak(utterance);
+
+                // Failsafe: if device mutes TTS or it glitches out and never fires onend
+                const calculatedMaxTime = Math.max(6000, (textToSpeak.length / 8) * 1000 + 4000); 
+                failsafeTimer = setTimeout(() => {
+                    if (!speechEnded) {
+                         window.speechSynthesis.cancel();
+                         setCurrentStep(prev => prev + 1);
+                    }
+                }, calculatedMaxTime);
+
+            } else {
+                // If TTS is completely unavailable on this device, just use standard timer
+                const calculatedTime = Math.max(6000, (textToSpeak.length / 12) * 1000 + 1000);
+                advanceTimer = setTimeout(() => {
+                    setCurrentStep(prev => prev + 1);
+                }, calculatedTime);
+            }
         }
 
-        // Cleanup: stop talking if the user closes the modal or navigates away
         return () => {
+            clearTimeout(advanceTimer);
+            clearTimeout(failsafeTimer);
             if (typeof window !== 'undefined' && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
             }
         };
-    }, [currentStep, isPlaying, steps]);
+    }, [isPlaying, currentStep, steps]);
 
     const handleNext = () => {
         if (currentStep < steps.length - 1) {
