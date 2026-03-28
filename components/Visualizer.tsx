@@ -40,6 +40,53 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
         return () => clearTimeout(timer);
     }, [isPlaying, currentStep, steps.length]);
 
+    // Load available voices once (required by Chrome/Safari to initialize voices)
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+        }
+    }, []);
+
+    // Text-to-Speech Narration synchronized with the animation
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+        // Immediately cancel any currently playing audio so voices don't overlap
+        window.speechSynthesis.cancel();
+
+        // Only speak if we are on a valid step and the player is active
+        if (currentStep >= 0 && currentStep < steps.length && isPlaying) {
+            const step = steps[currentStep];
+            
+            // Clean up LaTeX markers so the voice engine reads normal words and numbers
+            const cleanExplanation = step.explanation.replace(/[\$\\\(\)]/g, "");
+            const textToSpeak = `${step.title}. ${cleanExplanation}`;
+
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            
+            // Set properties for a more "tutor-like" clear voice
+            utterance.rate = 0.95; // Slightly slower pacing
+            utterance.pitch = 1.0;
+
+            // Try to find a premium/natural English voice if available on the user's OS
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => 
+                v.lang.startsWith("en-") && 
+                (v.name.includes("Google") || v.name.includes("Siri") || v.name.includes("Natural") || v.name.includes("Premium"))
+            );
+            if (preferredVoice) utterance.voice = preferredVoice;
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Cleanup: stop talking if the user closes the modal or navigates away
+        return () => {
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, [currentStep, isPlaying, steps]);
+
     const handleNext = () => {
         if (currentStep < steps.length - 1) {
             setCurrentStep((prev) => prev + 1);
