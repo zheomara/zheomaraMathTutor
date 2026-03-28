@@ -246,7 +246,6 @@ export async function POST(req: NextRequest) {
                     messages,
                     model: "llama-3.3-70b-versatile",
                     temperature: 0.2, // Low temp for more deterministic output
-                    response_format: { type: "json_object" },
                 });
 
                 const content = cleanAIJSON(completion.choices[0]?.message?.content || "");

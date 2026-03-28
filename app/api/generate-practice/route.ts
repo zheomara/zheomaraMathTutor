@@ -106,7 +106,6 @@ export async function POST(req: NextRequest) {
                 ],
                 model: "llama-3.3-70b-versatile",
                 temperature: 0.2, // Low temp prevents Llama 3 JSON mode from squishing words (spacing bug)
-                response_format: { type: "json_object" },
             });
 
             const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
