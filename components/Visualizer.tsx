@@ -30,9 +30,17 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
     useEffect(() => {
         let timer: NodeJS.Timeout;
         if (isPlaying && currentStep < steps.length - 1) {
+            // Dynamically calculate delay so the voice TTS never gets cut off on long paragraphs
+            let dynamicDelay = 6000; // minimum reading plus animation time
+            if (currentStep >= 0) {
+                const textLength = (steps[currentStep].title + steps[currentStep].explanation).length;
+                const estimatedReadTimeMs = (textLength / 12) * 1000; // ~12 characters per second reading speed
+                dynamicDelay = Math.max(6000, estimatedReadTimeMs + 1000); // Add 1s breather
+            }
+
             timer = setTimeout(() => {
                 setCurrentStep((prev) => prev + 1);
-            }, 6000); // 6 seconds to allow for reading + reveal
+            }, dynamicDelay);
         } else if (currentStep === steps.length - 1 && isPlaying) {
             setIsPlaying(false);
             setCelebrate(true);
