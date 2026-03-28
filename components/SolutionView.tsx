@@ -333,7 +333,7 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                                 />
                             </div>
                         ) : (
-                            <KatexRenderer equation={solution.originalText || solution.transcription} />
+                            <InlineMathText text={solution.originalText || solution.transcription} />
                         )}
                     </div>
                 </div>
