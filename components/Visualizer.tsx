@@ -42,15 +42,14 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
             return () => clearTimeout(advanceTimer);
         }
 
-        // Celebration screen
-        if (currentStep === steps.length - 1) {
-            setIsPlaying(false);
-            setCelebrate(true);
-            return;
-        }
+        // Active animation steps (now fully includes the final step)
+        if (currentStep >= 0 && currentStep < steps.length) {
+            
+            // Trigger confetti as soon as the final step hits the screen!
+            if (currentStep === steps.length - 1 && !celebrate) {
+                setCelebrate(true);
+            }
 
-        // Active animation steps
-        if (currentStep >= 0 && currentStep < steps.length - 1) {
             const step = steps[currentStep];
             const cleanExplanation = step.explanation.replace(/[\$\\\(\)]/g, "");
             const textToSpeak = `${step.title}. ${cleanExplanation}`;
@@ -70,36 +69,51 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
 
                 let speechEnded = false;
 
-                // When speech finishes naturally, wait 1 second to breathe, then advance
                 utterance.onend = () => {
                     speechEnded = true;
-                    advanceTimer = setTimeout(() => {
-                        setCurrentStep(prev => prev + 1);
-                    }, 1000);
+                    if (currentStep < steps.length - 1) {
+                        advanceTimer = setTimeout(() => {
+                            setCurrentStep(prev => prev + 1);
+                        }, 1000);
+                    } else {
+                        // Finished narrating the final step!
+                        setIsPlaying(false);
+                    }
                 };
 
-                // If speech fails to play, fallback quickly
                 utterance.onerror = () => {
                     speechEnded = true;
-                    advanceTimer = setTimeout(() => setCurrentStep(prev => prev + 1), 6000);
+                    if (currentStep < steps.length - 1) {
+                        advanceTimer = setTimeout(() => setCurrentStep(prev => prev + 1), 6000);
+                    } else {
+                        setIsPlaying(false);
+                    }
                 };
 
                 window.speechSynthesis.speak(utterance);
 
-                // Failsafe: if device mutes TTS or it glitches out and never fires onend
+                // Failsafe
                 const calculatedMaxTime = Math.max(6000, (textToSpeak.length / 8) * 1000 + 4000); 
                 failsafeTimer = setTimeout(() => {
                     if (!speechEnded) {
                          window.speechSynthesis.cancel();
-                         setCurrentStep(prev => prev + 1);
+                         if (currentStep < steps.length - 1) {
+                             setCurrentStep(prev => prev + 1);
+                         } else {
+                             setIsPlaying(false);
+                         }
                     }
                 }, calculatedMaxTime);
 
             } else {
-                // If TTS is completely unavailable on this device, just use standard timer
+                // If TTS is completely unavailable
                 const calculatedTime = Math.max(6000, (textToSpeak.length / 12) * 1000 + 1000);
                 advanceTimer = setTimeout(() => {
-                    setCurrentStep(prev => prev + 1);
+                    if (currentStep < steps.length - 1) {
+                        setCurrentStep(prev => prev + 1);
+                    } else {
+                        setIsPlaying(false);
+                    }
                 }, calculatedTime);
             }
         }
