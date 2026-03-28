@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
         console.log("GROQ_KEY_PREFIX:", process.env.GROQ_API_KEY?.substring(0, 4));
 
         const body = await req.json();
-        const { problemText, image } = body;
+        let { problemText, image } = body;
 
         const currentPrompt = SYSTEM_PROMPT;
 
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
 
         let data;
 
+        // --- STAGE 1: Image OCR (Extract text from image) ---
         if (image) {
             if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
                 return NextResponse.json(
@@ -148,52 +149,55 @@ export async function POST(req: NextRequest) {
             const base64Data = image.split(',')[1];
             const mimeType = image.split(';')[0].split(':')[1];
 
-            try {
-                if (!process.env.GEMINI_API_KEY) throw new Error("No Gemini Key Configured");
+            let geminiQuotaHit = false;
+            let extractedText = "";
 
-                const model = genAI.getGenerativeModel({
-                    model: "gemini-1.5-flash",
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        temperature: 0.2,
-                    }
-                });
+            const ocrPrompt = "Extract the math problem text from this image exactly as it is written. Do not solve it. Just return the text.";
 
-                const result = await model.generateContent([
-                    currentPrompt,
-                    "Identify and solve the math problem in this image.",
-                    {
-                        inlineData: {
-                            data: base64Data,
-                            mimeType: mimeType,
-                        }
-                    }
-                ]);
-
-                const response = await result.response;
-                const content = cleanAIJSON(response.text());
-                if (!content) throw new Error("No content received from Gemini");
-                data = JSON.parse(content);
-            } catch (geminiError: any) {
-                console.warn("[AI Fallback] Gemini failed, attempting OpenAI fallback:", geminiError.message);
-
-                if (!process.env.OPENAI_API_KEY) {
-                    throw new Error("Gemini failed, and no OpenAI key is available for fallback.");
-                }
-
+            // Try Gemini for OCR
+            if (process.env.GEMINI_API_KEY) {
                 try {
+                    const model = genAI.getGenerativeModel({
+                        model: "gemini-1.5-flash",
+                        generationConfig: {
+                            temperature: 0.1, // Low temp for OCR
+                        }
+                    });
+
+                    const result = await model.generateContent([
+                        ocrPrompt,
+                        {
+                            inlineData: {
+                                data: base64Data,
+                                mimeType: mimeType,
+                            }
+                        }
+                    ]);
+
+                    const response = await result.response;
+                    extractedText = response.text().trim();
+                    if (!extractedText) throw new Error("No text extracted from Gemini");
+                } catch (geminiError: any) {
+                    const msg: string = geminiError.message || "";
+                    geminiQuotaHit = msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("resource_exhausted");
+                    console.warn("[AI Fallback] Gemini OCR failed, attempting OpenAI fallback:", msg);
+                }
+            }
+
+            // Try OpenAI for OCR if Gemini failed or skipped
+            if (!extractedText && process.env.OPENAI_API_KEY) {
+                try {
+                    console.log("[AI Fallback] Trying OpenAI vision for OCR...");
                     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
                     const completion = await openai.chat.completions.create({
                         model: "gpt-4o-mini",
-                        temperature: 0.2,
-                        response_format: { type: "json_object" },
+                        temperature: 0.1,
                         messages: [
-                            { role: "system", content: currentPrompt },
                             {
                                 role: "user",
                                 content: [
-                                    { type: "text", text: "Identify and solve the math problem in this image." },
+                                    { type: "text", text: ocrPrompt },
                                     {
                                         type: "image_url",
                                         image_url: {
@@ -205,16 +209,33 @@ export async function POST(req: NextRequest) {
                         ]
                     });
 
-                    const content = cleanAIJSON(completion.choices[0]?.message?.content || "");
-                    if (!content) throw new Error("No content received from OpenAI fallback");
-                    data = JSON.parse(content);
+                    extractedText = completion.choices[0]?.message?.content?.trim() || "";
+                    if (!extractedText) throw new Error("No text extracted from OpenAI");
                 } catch (openaiError: any) {
-                    console.error("[AI Fallback] OpenAI fallback also failed:", openaiError.message);
-                    throw new Error(`AI systems are currently unavailable. Gemini: ${geminiError.message}, OpenAI: ${openaiError.message}`);
+                    const openaiMsg: string = openaiError.message || "";
+                    const openaiQuota = openaiMsg.includes("429") || openaiMsg.toLowerCase().includes("quota") || openaiMsg.toLowerCase().includes("insufficient");
+                    console.error("[AI Fallback] OpenAI OCR also failed:", openaiMsg);
+                    if (geminiQuotaHit || openaiQuota) {
+                        throw new Error("QUOTA_ERROR: All AI providers are currently at capacity. Please try again in a few minutes.");
+                    }
+                    throw new Error(`Image processing failed. Please try typing the problem instead. (${openaiMsg})`);
                 }
             }
 
-        } else {
+            if (!extractedText && !process.env.OPENAI_API_KEY && geminiQuotaHit) {
+                 throw new Error("QUOTA_ERROR: Gemini quota exceeded and no OpenAI key is configured.");
+            }
+
+            if (!extractedText) {
+                 throw new Error("Failed to read the math problem from the image. Please try typing it.");
+            }
+            
+            console.log("Extracted text from image:", extractedText);
+            problemText = extractedText; // Pass to stage 2
+        }
+
+        // --- STAGE 2: Solve Text (Groq / OpenAI logic) ---
+        if (problemText) {
             const messages: any[] = [
                 { role: "system", content: currentPrompt },
                 { role: "user", content: `Solve this math problem: ${problemText}` }
@@ -267,8 +288,12 @@ export async function POST(req: NextRequest) {
         console.error("AI Error Full Object:", JSON.stringify(error, null, 2));
         console.error("AI Error Message:", error instanceof Error ? error.message : String(error));
 
-        const errorMessage = error?.message?.toLowerCase() || "";
-        if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("insufficient") || errorMessage.includes("fallback")) {
+        const errorMessage = error?.message || "";
+        const isQuotaError = errorMessage.startsWith("QUOTA_ERROR:") ||
+            errorMessage.includes("429") ||
+            errorMessage.toLowerCase().includes("resource_exhausted") ||
+            (errorMessage.toLowerCase().includes("quota") && !errorMessage.toLowerCase().includes("no") && !errorMessage.toLowerCase().includes("missing"));
+        if (isQuotaError) {
             return NextResponse.json(
                 { error: "Our AI systems are currently experiencing unusually high demand (Quota limits). Please try again in a few minutes." },
                 { status: 503, headers: corsHeaders }
