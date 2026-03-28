@@ -102,10 +102,10 @@ export async function POST(req: NextRequest) {
             const completion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: currentPrompt },
-                    { role: "user", content: `Generate a similar practice problem for: ${currentProblem}` },
+                    { role: "user", content: `Generate a COMPLETELY NEW and different similar practice problem for: ${currentProblem}. Use completely different numbers and scenarios.` },
                 ],
                 model: "llama-3.3-70b-versatile",
-                temperature: 0.7, // Slightly higher temp for variation
+                temperature: 0.2, // Low temp prevents Llama 3 JSON mode from squishing words (spacing bug)
                 response_format: { type: "json_object" },
             });
 
@@ -124,11 +124,11 @@ export async function POST(req: NextRequest) {
 
                 const completion = await openai.chat.completions.create({
                     model: "gpt-4o-mini",
-                    temperature: 0.7,
+                    temperature: 0.2,
                     response_format: { type: "json_object" },
                     messages: [
                         { role: "system", content: currentPrompt },
-                        { role: "user", content: `Generate a similar practice problem for: ${currentProblem}` },
+                        { role: "user", content: `Generate a COMPLETELY NEW and different similar practice problem for: ${currentProblem}. Use completely different numbers and scenarios.` },
                     ],
                 });
 
