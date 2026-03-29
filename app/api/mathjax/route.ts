@@ -6,13 +6,22 @@ import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
 
-const adaptor = liteAdaptor();
-RegisterHTMLHandler(adaptor);
-const tex = new TeX({ packages: AllPackages });
-// Set fontCache: 'none' so that paths are not bundled into <defs> and <use> refs,
-// which is required to animate <path> elements with Framer Motion.
-const svg = new SVG({ fontCache: 'none' });
-const html = mathjax.document('', { InputJax: tex, OutputJax: svg });
+export const dynamic = 'force-dynamic';
+
+let html: any = null;
+let adaptor: any = null;
+
+function initMathJax() {
+    if (html && adaptor) return { html, adaptor };
+    adaptor = liteAdaptor();
+    RegisterHTMLHandler(adaptor);
+    const tex = new TeX({ packages: AllPackages });
+    // Set fontCache: 'none' so that paths are not bundled into <defs> and <use> refs,
+    // which is required to animate <path> elements with Framer Motion.
+    const svg = new SVG({ fontCache: 'none' });
+    html = mathjax.document('', { InputJax: tex, OutputJax: svg });
+    return { html, adaptor };
+}
 
 export async function POST(request: Request) {
     try {
@@ -22,8 +31,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'LaTeX string is required' }, { status: 400 });
         }
 
-        const node = html.convert(latex, { display: display !== false });
-        const svgString = adaptor.innerHTML(node);
+        const { html: mathDoc, adaptor: liteAdaptorInst } = initMathJax();
+
+        const node = mathDoc.convert(latex, { display: display !== false });
+        const svgString = liteAdaptorInst.innerHTML(node);
         
         return NextResponse.json({ svg: svgString });
     } catch (error: any) {
