@@ -145,6 +145,17 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
         }
     };
 
+    const handleOpenVisualizer = () => {
+        // Unlock speech synthesis on mobile via a direct user interaction
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            const unlockUtterance = new SpeechSynthesisUtterance("");
+            unlockUtterance.volume = 0; // silent
+            unlockUtterance.rate = 10; // fast
+            window.speechSynthesis.speak(unlockUtterance);
+        }
+        setShowVisualizer(true);
+    };
+
     const getThemeColors = (subject?: string) => {
         const s = subject?.toLowerCase() || "";
         if (s.includes("algebra")) return "text-green-700 bg-green-50 border-green-200 fill-green-600";
@@ -308,7 +319,7 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowVisualizer(true)}
+                        onClick={handleOpenVisualizer}
                         className={`hidden md:flex items-center hover:opacity-80 border ${themeClass}`}
                     >
                         <Play className="mr-2 w-3 h-3 fill-current" />
@@ -572,7 +583,7 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                 <div className="flex items-center gap-2">
                     <Button
                         variant="secondary"
-                        onClick={() => setShowVisualizer(true)}
+                        onClick={handleOpenVisualizer}
                         className="md:hidden flex items-center text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100"
                     >
                         <Play className="mr-2 w-3 h-3 fill-current" />
