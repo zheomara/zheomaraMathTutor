@@ -59,21 +59,23 @@ CRITICAL INSTRUCTIONS:
         let data;
 
         try {
-            if (!process.env.GEMINI_API_KEY) throw new Error("No Gemini Key");
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", generationConfig: { responseMimeType: "application/json", temperature: 0.2 } });
-            const result = await model.generateContent(prompt);
-            data = JSON.parse(cleanAIJSON((await result.response).text()));
-        } catch (geminiError) {
-            console.warn("[Homework Guide] Gemini failed, attempting Groq fallback");
+            if (!process.env.GROQ_API_KEY) throw new Error("No Groq Key");
+            const completion = await groq.chat.completions.create({
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.2,
+                response_format: { type: "json_object" },
+                messages: [{ role: "user", content: prompt }]
+            });
+            data = JSON.parse(cleanAIJSON(completion.choices[0]?.message?.content || ""));
+        } catch (groqError) {
+            console.warn("[Homework Guide] Groq failed or timed out, attempting Gemini fallback");
             try {
-                const completion = await groq.chat.completions.create({
-                    model: "llama-3.3-70b-versatile",
-                    temperature: 0.2,
-                    messages: [{ role: "user", content: prompt }]
-                });
-                data = JSON.parse(cleanAIJSON(completion.choices[0]?.message?.content || ""));
-            } catch (groqError: any) {
-                console.warn("[Homework Guide] Groq failed, attempting OpenAI fallback");
+                if (!process.env.GEMINI_API_KEY) throw new Error("No Gemini Key");
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", generationConfig: { responseMimeType: "application/json", temperature: 0.2 } });
+                const result = await model.generateContent(prompt);
+                data = JSON.parse(cleanAIJSON((await result.response).text()));
+            } catch (geminiError: any) {
+                console.warn("[Homework Guide] Gemini also failed, attempting final OpenAI fallback");
                 if (!process.env.OPENAI_API_KEY) throw new Error("No OpenAI key");
                 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
                 const completion = await openai.chat.completions.create({
