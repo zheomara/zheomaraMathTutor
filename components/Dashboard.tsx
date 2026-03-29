@@ -41,7 +41,7 @@ const uiTranslations = {
         ready: "Ready to learn?",
         uploadSub: "Upload a photo of your problem or type it in! Our AI will teach you step-by-step.",
         upload: "Upload Photo",
-        camera: "Take Camera",
+        camera: "Take Photo",
         or: "or",
         typeProblem: "Type Problem",
         placeholder: "E.g. Solve 5 + 5",
