@@ -118,3 +118,48 @@ export async function explainConcept(concept: string): Promise<{ title: string; 
 
     return await res.json();
 }
+
+export async function generateStudyGuide(solution: MathSolution): Promise<any> {
+    const res = await fetch(`${FINAL_API_URL}/api/generate-study-guide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ solution }),
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Failed to generate study guide" }));
+        throw new Error(errorData.error || "Failed to generate study guide");
+    }
+
+    return await res.json();
+}
+
+export async function solveHomework(image: string): Promise<any> {
+    const res = await fetch(`${FINAL_API_URL}/api/solve-homework`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image }),
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Failed to solve homework" }));
+        throw new Error(errorData.error || "Failed to solve homework");
+    }
+
+    return await res.json();
+}
+
+export async function generateHomeworkGuide(solutions: MathSolution[]): Promise<any> {
+    const res = await fetch(`${FINAL_API_URL}/api/generate-homework-guide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ solutions }),
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Failed to generate homework guide" }));
+        throw new Error(errorData.error || "Failed to generate homework guide");
+    }
+
+    return await res.json(); // Returns HomeworkGuideData
+}

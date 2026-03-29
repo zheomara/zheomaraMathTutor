@@ -11,18 +11,20 @@ import jsPDF from "jspdf";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Visualizer from "./Visualizer";
+import StudyGuideDialog from "./StudyGuideDialog";
 import SocraticChat from "./SocraticChat";
 import Confetti from "./Confetti";
 import { updateUserStats } from "@/services/storage";
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { HelpCircle, ChevronRight, Check, Flame, Trophy } from "lucide-react";
+import { HelpCircle, ChevronRight, Check, Flame, Trophy, Sparkles } from "lucide-react";
 
 interface SolutionViewProps {
     solution: MathSolution;
-    onBack: () => void;
-    onGeneratePractice: () => void;
+    onBack?: () => void;
+    onGeneratePractice?: () => void;
+    isInline?: boolean;
 }
 
 const uiTranslations: Record<string, any> = {
@@ -55,9 +57,10 @@ const uiTranslations: Record<string, any> = {
     }
 };
 
-export default function SolutionView({ solution, onBack, onGeneratePractice }: SolutionViewProps) {
+export default function SolutionView({ solution, onBack, onGeneratePractice, isInline }: SolutionViewProps) {
     const t = uiTranslations.English;
     const [showVisualizer, setShowVisualizer] = useState(false);
+    const [showStudyGuide, setShowStudyGuide] = useState(false);
     const [revealedSteps, setRevealedSteps] = useState(1);
 
     // Quiz Mode States
@@ -148,8 +151,7 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
     const handleOpenVisualizer = () => {
         // Unlock speech synthesis on mobile via a direct user interaction
         if (typeof window !== 'undefined' && window.speechSynthesis) {
-            const unlockUtterance = new SpeechSynthesisUtterance("");
-            unlockUtterance.volume = 0; // silent
+            const unlockUtterance = new SpeechSynthesisUtterance(" ");
             unlockUtterance.rate = 10; // fast
             window.speechSynthesis.speak(unlockUtterance);
         }
@@ -203,6 +205,15 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                         katexElems.forEach((el) => {
                             (el as HTMLElement).style.fontSize = "1.2rem";
                             (el as HTMLElement).style.lineHeight = "1.5";
+                        });
+
+                        // Fix fraction lines specifically
+                        const fracLines = clonedElement.querySelectorAll(".frac-line");
+                        fracLines.forEach((el) => {
+                            const line = el as HTMLElement;
+                            line.style.borderBottomWidth = "1px";
+                            line.style.borderBottomStyle = "solid";
+                            line.style.display = "block";
                         });
                     }
                 }
@@ -260,11 +271,17 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
     };
 
     return (
-        <div className="w-full max-w-4xl mx-auto p-4 space-y-6 pb-20">
+        <div className={`w-full max-w-4xl mx-auto space-y-6 ${isInline ? 'p-0 pb-4' : 'p-4 pb-20'}`}>
             {showVisualizer && (
                 <Visualizer
                     solution={solution}
                     onClose={() => setShowVisualizer(false)}
+                />
+            )}
+            {showStudyGuide && (
+                <StudyGuideDialog
+                    solution={solution}
+                    onClose={() => setShowStudyGuide(false)}
                 />
             )}
             <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
@@ -305,31 +322,54 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                 )}
             </AnimatePresence>
 
-            <div className="flex items-center justify-between">
-                <Button variant="ghost" onClick={onBack} className="pl-0 hover:bg-transparent hover:text-indigo-600 font-bold">
-                    <ArrowLeft className="mr-2 w-5 h-5" />
-                    {t.back_to_dashboard}
-                </Button>
-                <div className="flex items-center gap-2">
-                    {solution.subject && (
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide border ${themeClass}`}>
-                            {solution.subject}
+            {!isInline ? (
+                <div className="flex items-center justify-between">
+                    <Button variant="ghost" onClick={onBack} className="pl-0 hover:bg-transparent hover:text-indigo-600 font-bold">
+                        <ArrowLeft className="mr-2 w-5 h-5" />
+                        {t.back_to_dashboard}
+                    </Button>
+                    <div className="flex items-center gap-2">
+                        {solution.subject && (
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide border ${themeClass}`}>
+                                {solution.subject}
+                            </span>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleOpenVisualizer}
+                            className={`hidden md:flex items-center hover:opacity-80 border ${themeClass}`}
+                        >
+                            <Play className="mr-2 w-3 h-3 fill-current" />
+                            {t.watch_animation}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowStudyGuide(true)}
+                            className="hidden md:flex items-center text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100"
+                        >
+                            <Sparkles className="mr-2 w-3 h-3 fill-amber-500 text-amber-500" />
+                            Magic Guide
+                        </Button>
+                        <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                            {t.confidence}: {Math.round(solution.confidence * 100)}%
                         </span>
-                    )}
-                    <Button
+                    </div>
+                </div>
+            ) : (
+                <div className="flex items-center justify-end px-2 pt-2 gap-2">
+                     <Button
                         variant="outline"
                         size="sm"
                         onClick={handleOpenVisualizer}
-                        className={`hidden md:flex items-center hover:opacity-80 border ${themeClass}`}
+                        className={`flex items-center hover:opacity-80 border ${themeClass}`}
                     >
-                        <Play className="mr-2 w-3 h-3 fill-current" />
+                        <Play className="mr-2 w-4 h-4 fill-current" />
                         {t.watch_animation}
                     </Button>
-                    <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
-                        {t.confidence}: {Math.round(solution.confidence * 100)}%
-                    </span>
                 </div>
-            </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" id="solution-content">
                 <div className="p-6 border-b border-gray-100 bg-gray-50/50">
@@ -574,27 +614,37 @@ export default function SolutionView({ solution, onBack, onGeneratePractice }: S
                 </div>
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex justify-between items-center max-w-4xl mx-auto z-40">
-                <Button variant="outline" onClick={handleDownloadPDF}>
-                    <Download className="mr-2 w-4 h-4" />
-                    {t.download_pdf}
-                </Button>
+            {!isInline && (
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex justify-between items-center max-w-4xl mx-auto z-40">
+                    <Button variant="outline" onClick={handleDownloadPDF}>
+                        <Download className="mr-2 w-4 h-4" />
+                        {t.download_pdf}
+                    </Button>
 
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="secondary"
-                        onClick={handleOpenVisualizer}
-                        className="md:hidden flex items-center text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100"
-                    >
-                        <Play className="mr-2 w-3 h-3 fill-current" />
-                        {t.animation}
-                    </Button>
-                    <Button onClick={onGeneratePractice}>
-                        <RefreshCw className="mr-2 w-4 h-4" />
-                        {t.practice_similar}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="secondary"
+                            onClick={handleOpenVisualizer}
+                            className="md:hidden flex items-center text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100"
+                        >
+                            <Play className="mr-2 w-3 h-3 fill-current" />
+                            {t.animation}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowStudyGuide(true)}
+                            className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100"
+                        >
+                            <Sparkles className="mr-2 w-4 h-4 fill-amber-500 text-amber-500" />
+                            Guide
+                        </Button>
+                        <Button onClick={onGeneratePractice}>
+                            <RefreshCw className="mr-2 w-4 h-4" />
+                            {t.practice_similar}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }

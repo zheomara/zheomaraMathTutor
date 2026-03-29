@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/Input";
 import { Upload, Camera, Keyboard, AlertTriangle, Flame, Trophy } from "lucide-react";
 import CameraCapture from "@/components/CameraCapture";
 import SolutionView from "@/components/SolutionView";
+import HomeworkView from "@/components/HomeworkView";
 import HistorySidebar from "@/components/HistorySidebar";
 import { getInternetNow } from "@/lib/time";
 import AccessGate from "./AccessGate";
 import TOSModal from "./TOSModal";
 import { processImage } from "@/lib/image";
-import { solveMathProblem, generatePracticeProblem } from "@/services/math";
+import { solveMathProblem, generatePracticeProblem, solveHomework } from "@/services/math";
 import { getUserStats, UserStats, saveToHistory, getFreeTries, incrementFreeTries } from "@/services/storage";
 import { MathSolution } from "@/services/types";
 import { motion, AnimatePresence } from "framer-motion";
@@ -55,10 +56,12 @@ const uiTranslations = {
 
 export default function Dashboard() {
     const router = useRouter();
-    const [view, setView] = useState<"dashboard" | "camera" | "solution">("dashboard");
+    const [view, setView] = useState<"dashboard" | "camera" | "solution" | "homework">("dashboard");
+    const [mode, setMode] = useState<"single" | "homework">("single");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [solution, setSolution] = useState<MathSolution | null>(null);
+    const [homeworkSolutions, setHomeworkSolutions] = useState<MathSolution[] | null>(null);
     const [manualInput, setManualInput] = useState("");
     const [showManualInput, setShowManualInput] = useState(false);
     const [stats, setStats] = useState<UserStats | null>(null);
@@ -194,11 +197,27 @@ export default function Dashboard() {
             setError("");
             setIsUploading(true);
             const base64 = await processImage(file);
-            await handleSolve("", base64);
-        } catch (err) {
+            
+            if (mode === "homework") {
+                const canSolve = await checkSubscriptionOrTrial();
+                if (!canSolve) {
+                    setLoading(false);
+                    setIsUploading(false);
+                    return;
+                }
+                const res = await solveHomework(base64);
+                setHomeworkSolutions(res.solutions);
+                setIsUploading(false);
+                setView("homework");
+                setLoading(false);
+            } else {
+                await handleSolve("", base64);
+            }
+        } catch (err: any) {
             console.error(err);
-            setError("Failed to process image.");
+            setError(err.message || "Failed to process image.");
             setLoading(false);
+            setIsUploading(false);
         }
     };
 
@@ -243,6 +262,15 @@ export default function Dashboard() {
                     handleImageFile(file);
                 }}
                 onClose={() => setView("dashboard")}
+            />
+        );
+    }
+
+    if (view === "homework" && homeworkSolutions) {
+        return (
+            <HomeworkView
+                solutions={homeworkSolutions}
+                onBack={() => setView("dashboard")}
             />
         );
     }
@@ -371,8 +399,26 @@ export default function Dashboard() {
                                     {t.ready}
                                 </h2>
                                 <p className="text-gray-500 text-base max-w-sm mx-auto leading-relaxed">
-                                    {t.uploadSub}
+                                    {mode === 'single' ? t.uploadSub : "Upload a photo of your ENTIRE homework sheet! Our AI will detect and solve every single problem on the page."}
                                 </p>
+                            </motion.div>
+
+                            <motion.div variants={itemVariants} className="flex justify-center -mt-2 mb-2">
+                                <div className="bg-indigo-50 p-1.5 rounded-full inline-flex border border-indigo-100 shadow-inner">
+                                    <button 
+                                        onClick={() => setMode('single')} 
+                                        className={`px-6 py-2 rounded-full font-bold text-sm transition-all duration-300 ${mode === 'single' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Single Problem
+                                    </button>
+                                    <button 
+                                        onClick={() => setMode('homework')} 
+                                        className={`px-6 py-2 rounded-full font-bold text-sm transition-all duration-300 flex items-center gap-2 ${mode === 'homework' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-md text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <Flame className={`w-3.5 h-3.5 ${mode === 'homework' ? 'fill-yellow-400 text-yellow-500' : 'fill-none'}`} /> 
+                                        Full Homework
+                                    </button>
+                                </div>
                             </motion.div>
 
                             <motion.div variants={itemVariants} className="grid grid-cols-1 gap-5 sm:grid-cols-2">

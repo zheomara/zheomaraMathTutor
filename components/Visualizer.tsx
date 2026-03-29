@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Play, Pause, SkipForward, SkipBack, Bot, Sparkles, Star, Heart, Trophy } from "lucide-react";
 import KatexRenderer from "./KatexRenderer";
+import SvgAnimatedMath from "./SvgAnimatedMath";
 import { Button } from "./ui/Button";
 
 interface VisualizerProps {
@@ -26,6 +27,7 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
     const [isPlaying, setIsPlaying] = useState(true);
     const [celebrate, setCelebrate] = useState(false);
     const steps = solution.steps;
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
     // Unified Animation Timer and Speech Synthesis Controller
     useEffect(() => {
@@ -55,10 +57,16 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
             const textToSpeak = `${step.title}. ${cleanExplanation}`;
 
             if (typeof window !== 'undefined' && window.speechSynthesis) {
-                window.speechSynthesis.cancel();
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.cancel();
+                }
+
                 const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utteranceRef.current = utterance;
+                
                 utterance.rate = 0.95;
                 utterance.pitch = 1.0;
+                utterance.lang = "en-US";
 
                 const voices = window.speechSynthesis.getVoices();
                 const preferredVoice = voices.find(v => 
@@ -259,8 +267,15 @@ export default function Visualizer({ solution, onClose }: VisualizerProps) {
                                             transition={{ duration: 1.5, ease: "linear" }}
                                             className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none"
                                         />
-                                        <div className="overflow-x-auto overflow-y-hidden py-1 px-1">
-                                            <KatexRenderer equation={steps[currentStep].math} block />
+                                        <div className="overflow-x-auto overflow-y-hidden py-1 px-1 flex justify-center">
+                                            {steps[currentStep].math && (
+                                                <SvgAnimatedMath 
+                                                    equation={steps[currentStep].math} 
+                                                    block={true}
+                                                    isAnimating={isPlaying}
+                                                    animationDuration={Math.max(1.5, steps[currentStep].math.length * 0.05)}
+                                                />
+                                            )}
                                         </div>
                                     </motion.div>
 

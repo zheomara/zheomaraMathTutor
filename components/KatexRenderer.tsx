@@ -14,10 +14,21 @@ export default function KatexRenderer({ equation, block = false }: KatexRenderer
     const containerRef = useRef<HTMLSpanElement>(null);
     const safeEquation = ensureString(equation);
 
+    const cleanFormula = (f: string) => {
+        if (!f) return '';
+        let cleaned = f.trim();
+        if (cleaned.startsWith('\\(') && cleaned.endsWith('\\)')) cleaned = cleaned.slice(2, -2);
+        else if (cleaned.startsWith('\\[') && cleaned.endsWith('\\]')) cleaned = cleaned.slice(2, -2);
+        else if (cleaned.startsWith('$$') && cleaned.endsWith('$$')) cleaned = cleaned.slice(2, -2);
+        else if (cleaned.startsWith('$') && cleaned.endsWith('$')) cleaned = cleaned.slice(1, -1);
+        return cleaned.trim();
+    };
+
     useEffect(() => {
         if (containerRef.current) {
             try {
-                katex.render(safeEquation, containerRef.current, {
+                const finalEq = cleanFormula(safeEquation);
+                katex.render(finalEq, containerRef.current, {
                     displayMode: block,
                     throwOnError: false,
                     output: "htmlAndMathml"
