@@ -5,7 +5,9 @@ const nextConfig = {
         unoptimized: true,
     },
     optimizeFonts: false,
-    serverExternalPackages: ['mathjax-full'],
+    experimental: {
+        serverComponentsExternalPackages: ['mathjax-full'],
+    },
 };
 
 export default nextConfig;
