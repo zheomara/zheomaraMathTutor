@@ -35,7 +35,7 @@ The output MUST be in valid JSON format with this exact structure:
   "topic": "Overall theme covering all problems (e.g. 'Fractions & Ratios')",
   "summary": "A friendly 3-sentence summary of the core concepts they practiced today.",
   "keyFormulas": [
-    { "name": "Formula Name", "formula": "Pure LaTeX formula NO dollar signs" }
+    { "name": "Formula Name", "formula": "LaTeX formula using dollar signs (e.g. $A = \\pi r^2$)" }
   ],
   "proTips": [
     "Tip 1 (use dollar signs $...$ for inline math)", 
@@ -52,8 +52,7 @@ The output MUST be in valid JSON format with this exact structure:
 CRITICAL INSTRUCTIONS:
 1. PRACTICE PROBLEMS MUST BE EXACTLY 10. Generate exactly 10 practice problems related to the topics on their homework sheet to help them prepare for a test.
 2. SPACING & READABILITY: Ensure all text fields have PROPER SPACING between words.
-3. MATH FORMATTING: Inside 'proTips', 'problem', and 'solution', you MUST use dollar signs ($...$) to enclose ALL math equations, numbers, and variables so that the text words render normally with spaces. 
-   - For 'keyFormulas.formula', provide pure LaTeX without dollar signs.
+3. MATH FORMATTING: Inside 'formula', 'proTips', 'problem', and 'solution', you MUST use dollar signs ($...$) to enclose ALL math equations, numbers, and variables so that the text words render normally with spaces. 
 4. Keep it engaging and educational.`;
 
         let data;
